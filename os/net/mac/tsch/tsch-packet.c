@@ -216,6 +216,8 @@ tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
 }
 /*---------------------------------------------------------------------------*/
 /* Create an EB packet */
+// CREATE EB
+// CREATE FRAME
 int
 tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 {
@@ -308,6 +310,18 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   p += ie_len;
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
 
+
+    int exBy = 2;
+    int i;
+    //create_mlme_long_ie_descriptor(p, 0x8, exBy);
+    createTestIE(p, 2);
+    p+=2;
+    for(i = 0; i < exBy; i++){
+        p[i] = (uint8_t) 77;
+    }
+    p+=exBy;
+    packetbuf_set_datalen(packetbuf_datalen() + exBy+2); // Add data length + 2 bytes for header
+
 #if 0
   /* Payload IE list termination: optional */
   ie_len = frame80215e_create_ie_payload_list_termination(p,
@@ -383,6 +397,7 @@ tsch_packet_update_eb(uint8_t *buf, int buf_size, uint8_t tsch_sync_ie_offset)
 }
 /*---------------------------------------------------------------------------*/
 /* Parse a IEEE 802.15.4e TSCH Enhanced Beacon (EB) */
+// PARSE EB
 int
 tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
                      frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len, int frame_without_mic)

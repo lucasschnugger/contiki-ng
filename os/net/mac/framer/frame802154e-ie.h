@@ -59,7 +59,7 @@ struct tsch_slotframe_and_links_link {
 };
 struct tsch_slotframe_and_links {
   uint8_t num_slotframes; /* We support only 0 or 1 slotframe in this IE */
-  uint8_t slotframe_handle;
+  uint8_t slotframe_handle; // Some id for the slotframe
   uint16_t slotframe_size;
   uint8_t num_links;
   struct tsch_slotframe_and_links_link links[FRAME802154E_IE_MAX_LINKS];
@@ -77,6 +77,7 @@ struct ieee802154_ies {
   uint8_t ie_tsch_synchronization_offset;
   struct tsch_asn_t ie_asn;
   uint8_t ie_join_priority;
+  uint8_t test;
   uint8_t ie_tsch_timeslot_id;
   uint16_t ie_tsch_timeslot[tsch_ts_elements_count];
   struct tsch_slotframe_and_links ie_tsch_slotframe_and_link;
@@ -127,6 +128,7 @@ int frame80215e_create_ie_tsch_timeslot(uint8_t *buf, int len,
 /* MLME sub-IE. TSCH channel hopping sequence. Used in EBs: hopping sequence */
 int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
+int createTestIE(uint8_t *buf, int len);
 
 /* Parse all Information Elements of a frame */
 int frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,

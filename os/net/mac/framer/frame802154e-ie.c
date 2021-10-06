@@ -42,6 +42,7 @@
 
 /* Log configuration */
 #include "sys/log.h"
+#include "lib/random.h"
 #define LOG_MODULE "Frame 15.4"
 #define LOG_LEVEL LOG_LEVEL_FRAMER
 
@@ -80,6 +81,7 @@ enum ieee802154e_mlme_short_subie_id {
 /* c.f. IEEE 802.15.4e Table 4e */
 enum ieee802154e_mlme_long_subie_id {
   MLME_LONG_IE_TSCH_CHANNEL_HOPPING_SEQUENCE = 0x9,
+  MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE = 0x8,
 };
 
 #include <net/mac/tsch/sixtop/sixtop.h>
@@ -340,6 +342,11 @@ frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
   }
 }
 
+int createTestIE(uint8_t *buf, int len){
+    create_mlme_long_ie_descriptor(buf, MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE, len);
+    return 2;
+}
+
 /* Parse a header IE */
 static int
 frame802154e_parse_header_ie(const uint8_t *buf, int len,
@@ -459,6 +466,14 @@ frame802154e_parse_mlme_long_ie(const uint8_t *buf, int len,
         return len;
       }
       break;
+    case MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE:
+        if(len > 0) {
+            if(ies != NULL) {
+                ies->test = buf[0];
+            }
+            return len;
+        }
+        break;
   }
   return -1;
 }
@@ -477,6 +492,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
   enum {PARSING_HEADER_IE, PARSING_PAYLOAD_IE, PARSING_MLME_SUBIE} parsing_state;
 
   if(ies == NULL) {
+      LOG_ERR("IES is null\n");
     return -1;
   }
 
@@ -487,6 +503,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
   /* Loop over all IEs */
   while(buf_size > 0) {
     if(buf_size < 2) { /* Not enough space for IE descriptor */
+        LOG_ERR("Wrong buffer size\n");
       return -1;
     }
     READ16(buf, ie_desc);
@@ -529,6 +546,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
             }
           default:
             if(len > buf_size || frame802154e_parse_header_ie(buf, len, id, ies) == -1) {
+                LOG_ERR("Len: %u - buf size: %u\n", len, buf_size);
               LOG_ERR("failed to parse\n");
               return -1;
             }
@@ -592,7 +610,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
           id = (ie_desc & 0x7f00) >> 8; /* b8-b14 */
           LOG_DBG("short mlme ie len %u id %x\n", len, id);
           if(len > buf_size || frame802154e_parse_mlme_short_ie(buf, len, id, ies) == -1) {
-            LOG_ERR("failed to parse ie\n");
+            LOG_ERR("failed to parse ie 1\n");
             return -1;
           }
         } else {
@@ -601,7 +619,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
           id = (ie_desc & 0x7800) >> 11; /* b11-b14 */
           LOG_DBG("long mlme ie len %u id %x\n", len, id);
           if(len > buf_size || frame802154e_parse_mlme_long_ie(buf, len, id, ies) == -1) {
-            LOG_ERR("failed to parse ie\n");
+            LOG_ERR("failed to parse ie 2\n");
             return -1;
           }
         }
@@ -622,7 +640,6 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
     buf += len;
     buf_size -= len;
   }
-
   if(parsing_state == PARSING_HEADER_IE) {
     ies->ie_payload_ie_offset = buf - start; /* Save IE header len */
   }
