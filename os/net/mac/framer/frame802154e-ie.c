@@ -342,9 +342,52 @@ frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
   }
 }
 
-int createTestIE(uint8_t *buf, int len){
-    create_mlme_long_ie_descriptor(buf, MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE, len);
-    return 2;
+//Len is length of IE excluding header
+int frame80215e_create_ie_tsch_topology_data(uint8_t *buf){
+    struct tsch_topology_data testData;
+    testData.node_count = 9999;
+    testData.node_data[0].channel_offset = 1112;
+    testData.node_data[0].asn.ls4b = (uint32_t) 123123;
+    testData.node_data[0].asn.ms1b = (uint8_t) 5;
+    int k;
+    for(k = 0; k < 8; k++){
+        testData.node_data[0].src_addr[k] = k+1;
+    }
+
+
+    int offset = 2;
+
+    //Add data
+    WRITE16(buf + offset, testData.node_count); //Set node count
+    offset += 2;
+
+    //Fill node data for each node
+    int i;
+    for(i = 0; i < 1; i++){
+        //Set node channel offset
+        WRITE16(buf + offset, testData.node_data[i].channel_offset);
+        offset += 2;
+
+        //Set ASN LSB & MSB
+        buf[offset] = testData.node_data[i].asn.ls4b;
+        buf[offset+1] = testData.node_data[i].asn.ls4b >> 8;
+        buf[offset+2] = testData.node_data[i].asn.ls4b >> 16;
+        buf[offset+3] = testData.node_data[i].asn.ls4b >> 24;
+        buf[offset+4] = testData.node_data[i].asn.ms1b;
+        offset += 5;
+
+        //Set link layer source address (identifier)
+        int j;
+        for(j = 0; j < 8; j++){
+            buf[offset] = testData.node_data[i].src_addr[j];
+            offset += 1;
+        }
+    }
+
+    //Create header
+    create_mlme_long_ie_descriptor(buf, MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE, offset-2); //set header with data length minus header
+
+    return offset;
 }
 
 /* Parse a header IE */
@@ -469,7 +512,29 @@ frame802154e_parse_mlme_long_ie(const uint8_t *buf, int len,
     case MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE:
         if(len > 0) {
             if(ies != NULL) {
-                ies->test = buf[0];
+                int offset = 0;
+                READ16(buf, ies->topology_data.node_count); //Parse node count
+                offset += 2;
+                //iterate nodes and parse data
+                int i;
+                for(i = 0; i < 1; i++){
+                    READ16(buf+offset, ies->topology_data.node_data[i].channel_offset); //Parse node channel offset
+                    offset += 2;
+                    //Parse ASN LSB & MSB
+                    ies->topology_data.node_data[i].asn.ls4b = (uint32_t)buf[offset];
+                    ies->topology_data.node_data[i].asn.ls4b |= (uint32_t)buf[offset+1] << 8;
+                    ies->topology_data.node_data[i].asn.ls4b |= (uint32_t)buf[offset+2] << 16;
+                    ies->topology_data.node_data[i].asn.ls4b |= (uint32_t)buf[offset+3] << 24;
+                    ies->topology_data.node_data[i].asn.ms1b = (uint8_t)buf[offset+4];
+                    offset += 5;
+
+                    //Parse link layer source address. Used as identifier.
+                    int j;
+                    for(j = 0; j < 8; j++){
+                        ies->topology_data.node_data[i].src_addr[j] = (uint8_t)buf[offset];
+                        offset += 1;
+                    }
+                }
             }
             return len;
         }
@@ -640,6 +705,8 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
     buf += len;
     buf_size -= len;
   }
+
+  buf++;
   if(parsing_state == PARSING_HEADER_IE) {
     ies->ie_payload_ie_offset = buf - start; /* Save IE header len */
   }

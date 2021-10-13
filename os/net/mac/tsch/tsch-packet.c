@@ -311,16 +311,13 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
 
 
-    int exBy = 2;
-    int i;
-    //create_mlme_long_ie_descriptor(p, 0x8, exBy);
-    createTestIE(p, 2);
-    p+=2;
-    for(i = 0; i < exBy; i++){
-        p[i] = (uint8_t) 77;
+
+    ie_len = frame80215e_create_ie_tsch_topology_data(p);
+    if(ie_len < 0){
+        return -1;
     }
-    p+=exBy;
-    packetbuf_set_datalen(packetbuf_datalen() + exBy+2); // Add data length + 2 bytes for header
+    p += ie_len;
+    packetbuf_set_datalen(packetbuf_datalen() + ie_len); // Add data length + 2 bytes for header
 
 #if 0
   /* Payload IE list termination: optional */
@@ -402,6 +399,7 @@ int
 tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
                      frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len, int frame_without_mic)
 {
+    LOG_INFO("HELLOOOOOOOOOOOO\n");
   uint8_t curr_len = 0;
   int ret;
 
@@ -420,7 +418,12 @@ tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
     LOG_INFO("! parse_eb: frame is not a TSCH beacon." \
            " Frame version %u, type %u, FCF %02x %02x\n",
            frame->fcf.frame_version, frame->fcf.frame_type, buf[0], buf[1]);
-    LOG_INFO("! parse_eb: frame was from 0x%x/", frame->src_pid);
+      LOG_INFO("! parse_eb: frame was from \n");
+      LOG_INFO_LLADDR((const linkaddr_t *)&frame->src_addr);
+      LOG_INFO("\n! parse_eb: frame was to \n ");
+      LOG_INFO_LLADDR((const linkaddr_t *)&frame->dest_addr);
+      //deployment_id_from_lladdr()
+
     LOG_INFO_LLADDR((const linkaddr_t *)&frame->src_addr);
     LOG_INFO_(" to 0x%x/", frame->dest_pid);
     LOG_INFO_LLADDR((const linkaddr_t *)&frame->dest_addr);
@@ -454,13 +457,15 @@ tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
       LOG_ERR("! parse_eb: failed to parse IEs\n");
       return 0;
     }
+
     curr_len += ret;
   }
 
   if(hdr_len != NULL) {
     *hdr_len += ies->ie_payload_ie_offset;
   }
-
+    LOG_ERR("NODE COUNT IS: %d\n", ies->topology_data.node_count);
+    LOG_ERR("CHANNEL OFFSET IS: %d\n", ies->topology_data.node_data[0].channel_offset);
   return curr_len;
 }
 /*---------------------------------------------------------------------------*/

@@ -51,6 +51,18 @@
 
 #define FRAME802154E_IE_MAX_LINKS       4
 
+
+/* Structures used for keeping track of the network topology*/
+struct tsch_node_data {
+    uint16_t channel_offset;
+    struct tsch_asn_t asn; //Absolute Slot Number for when data was updated
+    uint8_t src_addr[8]; //Link Layer Address. Used as identifier
+};
+struct tsch_topology_data {
+    uint16_t node_count;
+    struct tsch_node_data node_data[15];
+};
+
 /* Structures used for the Slotframe and Links information element */
 struct tsch_slotframe_and_links_link {
   uint16_t timeslot;
@@ -77,7 +89,7 @@ struct ieee802154_ies {
   uint8_t ie_tsch_synchronization_offset;
   struct tsch_asn_t ie_asn;
   uint8_t ie_join_priority;
-  uint8_t test;
+  struct tsch_topology_data topology_data;
   uint8_t ie_tsch_timeslot_id;
   uint16_t ie_tsch_timeslot[tsch_ts_elements_count];
   struct tsch_slotframe_and_links ie_tsch_slotframe_and_link;
@@ -128,7 +140,7 @@ int frame80215e_create_ie_tsch_timeslot(uint8_t *buf, int len,
 /* MLME sub-IE. TSCH channel hopping sequence. Used in EBs: hopping sequence */
 int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
-int createTestIE(uint8_t *buf, int len);
+int frame80215e_create_ie_tsch_topology_data(uint8_t *buf);
 
 /* Parse all Information Elements of a frame */
 int frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
