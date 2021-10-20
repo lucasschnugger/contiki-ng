@@ -45,6 +45,7 @@
  * @{
 */
 
+
 #include "contiki.h"
 #include "dev/radio.h"
 #include "net/netstack.h"
@@ -57,6 +58,9 @@
 #include "net/mac/mac-sequence.h"
 #include "lib/random.h"
 #include "net/routing/routing.h"
+#include "net/mac/tsch/tsch-types.h"
+#include "sys/node-id.h"
+
 
 #if TSCH_WITH_SIXTOP
 #include "net/mac/tsch/sixtop/sixtop.h"
@@ -76,6 +80,8 @@
 static linkaddr_t last_eb_nbr_addr;
 /* The join priority advertised by last_eb_nbr_addr */
 static uint8_t last_eb_nbr_jp;
+
+struct tsch_topology_data topology_data;
 
 /* Let TSCH select a time source with no help of an upper layer.
  * We do so using statistics from incoming EBs */
@@ -385,9 +391,78 @@ tsch_keepalive_process_pending(void)
   }
 }
 /*---------------------------------------------------------------------------*/
+struct tsch_topology_data * tsch_get_topology_data(){
+    return &topology_data;
+}
+/*static void tsch_set_topology_data(struct tsch_topology_data *input_topology){
+    topology_data = input_topology;
+}*/
+struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology){
+
+    //If any topology element is null, return the other
+    if(current_topology->node_count == 0){
+        LOG_WARN("Current IS NULL\n");
+        current_topology = input_topology;
+        return current_topology;
+    }
+    if(input_topology->node_count == 0){
+        LOG_WARN("INPut IS NULL\n");
+        return current_topology;
+    }
+    LOG_WARN("NONE are NULL\n");
+    LOG_WARN("Current node count: %d\n", current_topology->node_count);
+    LOG_WARN("Input node count: %d\n", input_topology->node_count);
+
+    int i;
+    int j;
+
+    //For each node in new topology
+    for(i = 0; i < input_topology->node_count; i++){
+        //LOG_WARN("The size of this src addr is: %d\n", sizeof(input_topology->node_data[i].src_addr));
+        LOG_WARN("The ID of this input node is: %u\n", input_topology->node_data[i].node_id);
+        /*for(j = 0; j < 8; j++){
+            LOG_WARN("%c",  input_topology->node_data[i].src_addr[j]);
+        }*/
+        //LOG_WARN("\n\n\n");
+        bool exists = false;
+        //Compare to every node in known topology
+        for(j = 0; j < current_topology->node_count; j++){
+            if(i == 0){
+                LOG_WARN("The ID of this current node is: %u\n", current_topology->node_data[j].node_id);
+            }
+
+            //If src_addr are equal, node already exists.
+            if(input_topology->node_data[i].node_id == current_topology->node_data[j].node_id)
+            {
+                //LOG_WARN("FOUND ONE THAT ALREADY EXISTS!!\n");
+                exists = true;
+                //If ASN of input node is larger than known node, update information
+                if(input_topology->node_data[i].asn.ms1b > current_topology->node_data[j].asn.ms1b ||
+                    (
+                            input_topology->node_data[i].asn.ms1b == current_topology->node_data[j].asn.ms1b &&
+                            input_topology->node_data[i].asn.ls4b > current_topology->node_data[j].asn.ls4b
+                    )
+                )
+                {
+                    LOG_WARN("Updating newer ASN node data with old ID: %u and new ID: %u\n", (unsigned int) current_topology->node_data[j].node_id, (unsigned int) input_topology->node_data[i].node_id);
+                    current_topology->node_data[j] = input_topology->node_data[i];
+                }
+            }
+        }
+        LOG_INFO("FOUND EXISTS: %s %s",(exists ? "true" : "false"),"\n");
+        //If node does not exist in current topology, add it
+        if(exists == false && input_topology->node_data[i].node_id > 0){
+            LOG_WARN("Found new node from input topology. Adding node with ID: %u\n", (unsigned int) input_topology->node_data[i].node_id);
+            current_topology->node_data[current_topology->node_count] = input_topology->node_data[i];
+            current_topology->node_count += 1;
+        }
+    }
+    return current_topology;
+}
 static void
 eb_input(struct input_packet *current_input)
 {
+
   /* LOG_INFO("EB received\n"); */
   frame802154_t frame;
   /* Verify incoming EB (does its ASN match our Rx time?),
@@ -396,8 +471,18 @@ eb_input(struct input_packet *current_input)
 
   if(tsch_packet_parse_eb(current_input->payload, current_input->len,
                           &frame, &eb_ies, NULL, 1)) {
+      //LOG_WARN("Received EB topology nodes is %d\n\n", eb_ies.topology_data.node_count);
+      //LOG_WARN("Previously known topology nodes %d\n\n", tsch_get_topology_data()->node_count);
     /* PAN ID check and authentication done at rx time */
 
+
+    //Try to print schedule
+    LOG_WARN("Printing schedule of input EB. NumLinks: %d\n", eb_ies.ie_tsch_slotframe_and_link.num_links);
+    int g;
+    for(g = 0; g < eb_ies.ie_tsch_slotframe_and_link.num_links; g++){
+        LOG_WARN("Link offset: %d, timeslot: %d", eb_ies.ie_tsch_slotframe_and_link.links[g].channel_offset,
+        eb_ies.ie_tsch_slotframe_and_link.links[g].timeslot);
+    }
     /* Got an EB from a different neighbor than our time source, keep enough data
      * to switch to it in case we lose the link to our time source */
     struct tsch_neighbor *ts = tsch_queue_get_time_source();
@@ -406,6 +491,10 @@ eb_input(struct input_packet *current_input)
       linkaddr_copy(&last_eb_nbr_addr, (linkaddr_t *)&frame.src_addr);
       last_eb_nbr_jp = eb_ies.ie_join_priority;
     }
+
+
+    topology_data = *merge_topology_data(&topology_data, &eb_ies.topology_data);
+
 
 #if TSCH_AUTOSELECT_TIME_SOURCE
     if(!tsch_is_coordinator) {

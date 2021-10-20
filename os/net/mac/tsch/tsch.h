@@ -262,5 +262,9 @@ uint64_t tsch_get_network_uptime_ticks(void);
   */
 void tsch_disassociate(void);
 
+struct tsch_topology_data * tsch_get_topology_data();
+//static void tsch_set_topology_data(struct tsch_topology_data *input_topology);
+struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology);
+
 #endif /* __TSCH_H__ */
 /** @} */

@@ -311,8 +311,10 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   packetbuf_set_datalen(packetbuf_datalen() + ie_len);
 
 
+  frame80215e_update_ie_tsch_topology_data(tsch_get_topology_data(), &ies, tsch_current_asn);
+  ie_len = frame80215e_create_ie_tsch_topology_data(p, tsch_get_topology_data());
 
-    ie_len = frame80215e_create_ie_tsch_topology_data(p);
+
     if(ie_len < 0){
         return -1;
     }
@@ -399,7 +401,6 @@ int
 tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
                      frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len, int frame_without_mic)
 {
-    LOG_INFO("HELLOOOOOOOOOOOO\n");
   uint8_t curr_len = 0;
   int ret;
 
