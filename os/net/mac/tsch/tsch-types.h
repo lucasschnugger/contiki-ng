@@ -62,6 +62,7 @@ struct tsch_node_data {
     uint16_t node_id; //Link Layer Address. Used as identifier
 };
 struct tsch_topology_data {
+    uint16_t src_node_id;
     uint16_t node_count;
     struct tsch_node_data node_data[15];
 };

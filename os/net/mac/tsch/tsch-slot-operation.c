@@ -1062,8 +1062,11 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           burst_link_scheduled = 0;
         } else {
           /* Hop channel */
-          tsch_current_channel_offset = tsch_get_channel_offset(current_link, current_packet);
+//          TSCH_LOG_ADD(tsch_log_message, snprintf(log->message, sizeof(log->message), "!Link type of link: %d", current_link->link_type));
+          tsch_current_channel_offset = tsch_get_channel_offset(current_link, current_packet); // always 0
+//          TSCH_LOG_ADD(tsch_log_message, snprintf(log->message, sizeof(log->message), "!Channel offset of outgoing packet: %d", tsch_current_channel_offset));
           tsch_current_channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
+//          TSCH_LOG_ADD(tsch_log_message, snprintf(log->message, sizeof(log->message), "!Channel of outgoing packet: %d", tsch_current_channel));
         }
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, tsch_current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */

@@ -347,7 +347,7 @@ void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current
         , struct ieee802154_ies *ies,
                 struct tsch_asn_t tsch_current_asn) {
     //Update topology data element
-    LOG_WARN("UPDATEING TOPOLOGY NODE COUNT %d!\n", current_topology->node_count);
+    LOG_WARN("UPDATING TOPOLOGY NODE COUNT %d!\n", current_topology->node_count);
 
     int i;
     bool found_self = false;
@@ -356,7 +356,7 @@ void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current
         if(node_id == current_topology->node_data[i].node_id)
         {
             found_self = true;
-            current_topology->node_data[i].channel_offset = 1111;//ies->ie_tsch_slotframe_and_link.
+            current_topology->node_data[i].channel_offset = 0;//ies->ie_tsch_slotframe_and_link.
             current_topology->node_data[i].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
             current_topology->node_data[i].asn.ms1b = tsch_current_asn.ms1b;
         }
@@ -364,12 +364,14 @@ void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current
 
 
     if(found_self == false && node_id > 0){
-        current_topology->node_data[current_topology->node_count].channel_offset = 1112;
+        current_topology->node_data[current_topology->node_count].channel_offset = 0;
         current_topology->node_data[current_topology->node_count].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
         current_topology->node_data[current_topology->node_count].asn.ms1b = tsch_current_asn.ms1b;
         current_topology->node_data[current_topology->node_count].node_id = node_id;
         current_topology->node_count += 1;
     }
+
+    current_topology->src_node_id = node_id;
 
     //tsch_set_topology_data(current_topology)
     //return current_topology;
@@ -379,6 +381,10 @@ void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current
 //Len is length of IE excluding header
 int frame80215e_create_ie_tsch_topology_data(uint8_t *buf, struct tsch_topology_data *current_topology){
     int offset = 2;
+
+    //Add src_node_id
+    WRITE16(buf + offset, current_topology->src_node_id); //Set node src id
+    offset += 2;
 
     //Add data
     WRITE16(buf + offset, current_topology->node_count); //Set node count
@@ -534,13 +540,15 @@ frame802154e_parse_mlme_long_ie(const uint8_t *buf, int len,
         if(len > 0) {
             if(ies != NULL) {
                 int offset = 0;
-                READ16(buf, ies->topology_data.node_count); //Parse node count
+                READ16(buf + offset, ies->topology_data.src_node_id); //Parse node src id
+                offset += 2;
+                READ16(buf + offset, ies->topology_data.node_count); //Parse node count
                 offset += 2;
                 LOG_WARN("Reading from EB nnode count is: %d\n", ies->topology_data.node_count);
                 //iterate nodes and parse data
                 int i;
                 for(i = 0; i < ies->topology_data.node_count; i++){
-                    READ16(buf+offset, ies->topology_data.node_data[i].channel_offset); //Parse node channel offset
+                    READ16(buf + offset, ies->topology_data.node_data[i].channel_offset); //Parse node channel offset
                     offset += 2;
                     //Parse ASN LSB & MSB
                     ies->topology_data.node_data[i].asn.ls4b = (uint32_t)buf[offset];

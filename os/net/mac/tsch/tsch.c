@@ -476,13 +476,6 @@ eb_input(struct input_packet *current_input)
     /* PAN ID check and authentication done at rx time */
 
 
-    //Try to print schedule
-    LOG_WARN("Printing schedule of input EB. NumLinks: %d\n", eb_ies.ie_tsch_slotframe_and_link.num_links);
-    int g;
-    for(g = 0; g < eb_ies.ie_tsch_slotframe_and_link.num_links; g++){
-        LOG_WARN("Link offset: %d, timeslot: %d", eb_ies.ie_tsch_slotframe_and_link.links[g].channel_offset,
-        eb_ies.ie_tsch_slotframe_and_link.links[g].timeslot);
-    }
     /* Got an EB from a different neighbor than our time source, keep enough data
      * to switch to it in case we lose the link to our time source */
     struct tsch_neighbor *ts = tsch_queue_get_time_source();
@@ -490,6 +483,17 @@ eb_input(struct input_packet *current_input)
     if(ts_addr == NULL || !linkaddr_cmp((linkaddr_t *)&frame.src_addr, ts_addr)) {
       linkaddr_copy(&last_eb_nbr_addr, (linkaddr_t *)&frame.src_addr);
       last_eb_nbr_jp = eb_ies.ie_join_priority;
+    }
+
+    LOG_INFO("TOPOLOGY DATA:\n");
+    LOG_INFO("From node ID %d, Node count %d\n", eb_ies.topology_data.src_node_id, eb_ies.topology_data.node_count);
+    int g;
+    for (g=0; g<eb_ies.topology_data.node_count; g++){
+      LOG_INFO("Node %d, Offset %d, ASN %02x.%03lx\n",
+               eb_ies.topology_data.node_data[g].node_id,
+               eb_ies.topology_data.node_data[g].channel_offset,
+               eb_ies.topology_data.node_data[g].asn.ms1b,
+               eb_ies.topology_data.node_data[g].asn.ls4b);
     }
 
 
