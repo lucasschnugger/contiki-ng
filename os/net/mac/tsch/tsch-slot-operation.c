@@ -261,7 +261,7 @@ tsch_get_channel_offset(struct tsch_link *link, struct tsch_packet *p)
  * \param channel_offset Given channel offset
  * \return The resulting channel
  */
-static uint8_t
+uint8_t
 tsch_calculate_channel(struct tsch_asn_t *asn, uint16_t channel_offset)
 {
   uint16_t index_of_0, index_of_offset;
@@ -1066,7 +1066,7 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           tsch_current_channel_offset = tsch_get_channel_offset(current_link, current_packet); // always 0
 //          TSCH_LOG_ADD(tsch_log_message, snprintf(log->message, sizeof(log->message), "!Channel offset of outgoing packet: %d", tsch_current_channel_offset));
           tsch_current_channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
-//          TSCH_LOG_ADD(tsch_log_message, snprintf(log->message, sizeof(log->message), "!Channel of outgoing packet: %d", tsch_current_channel));
+          TSCH_LOG_ADD(tsch_log_message, snprintf(log->message, sizeof(log->message), "!Channel of outgoing packet: %d", tsch_current_channel));
         }
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, tsch_current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */

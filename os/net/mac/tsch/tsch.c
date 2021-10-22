@@ -59,6 +59,7 @@
 #include "lib/random.h"
 #include "net/routing/routing.h"
 #include "net/mac/tsch/tsch-types.h"
+#include "net/mac/tsch/tsch-slot-operation.h"
 #include "sys/node-id.h"
 
 
@@ -150,6 +151,9 @@ static volatile enum tsch_keepalive_status keepalive_status;
 
 /* timer for sending keepalive messages */
 static struct ctimer keepalive_timer;
+static struct ctimer custom_timer;
+struct tsch_asn_t custom_asn;
+int custom_channel;
 
 /* Statistics on the current session */
 unsigned long tx_count;
@@ -459,6 +463,14 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
     }
     return current_topology;
 }
+
+static void update_custom_asn(){
+    ctimer_reset(&custom_timer);
+    TSCH_ASN_INC(custom_asn, 1);
+    custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
+    LOG_INFO("UPDATING CUSTOM ASN! Current channel: %d\n", custom_channel);
+}
+
 static void
 eb_input(struct input_packet *current_input)
 {
@@ -468,9 +480,23 @@ eb_input(struct input_packet *current_input)
   /* Verify incoming EB (does its ASN match our Rx time?),
    * and update our join priority. */
   struct ieee802154_ies eb_ies;
-
+  bool testTimer = false;
   if(tsch_packet_parse_eb(current_input->payload, current_input->len,
                           &frame, &eb_ies, NULL, 1)) {
+
+      if(testTimer == false){
+          //ctimer_stop(&custom_timer);
+          ctimer_set(&custom_timer, (clock_time_t)CLOCK_SECOND, update_custom_asn, NULL);
+          testTimer = true;
+      }
+
+      //ctimer_set(&custom_timer, ((int)(((double)((15)*CLOCK_SECOND)) / 1000.0)), update_custom_asn, NULL);
+
+      custom_asn = eb_ies.ie_asn;
+      //TSCH_DEFAULT_TIMESLOT_TIMING
+
+
+
       //LOG_WARN("Received EB topology nodes is %d\n\n", eb_ies.topology_data.node_count);
       //LOG_WARN("Previously known topology nodes %d\n\n", tsch_get_topology_data()->node_count);
     /* PAN ID check and authentication done at rx time */
@@ -894,6 +920,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
       current_channel = scan_channel;
       LOG_INFO("scanning on channel %u\n", scan_channel);
+      LOG_INFO("Custom channel is: %u\n", custom_channel);
 
       current_channel_since = now_time;
     }
