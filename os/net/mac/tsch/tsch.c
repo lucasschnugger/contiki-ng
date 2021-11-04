@@ -61,7 +61,7 @@
 #include "net/mac/tsch/tsch-types.h"
 #include "net/mac/tsch/tsch-slot-operation.h"
 #include "sys/node-id.h"
-
+#include "sys/rtimer.h"
 
 #if TSCH_WITH_SIXTOP
 #include "net/mac/tsch/sixtop/sixtop.h"
@@ -151,9 +151,12 @@ static volatile enum tsch_keepalive_status keepalive_status;
 
 /* timer for sending keepalive messages */
 static struct ctimer keepalive_timer;
-static struct ctimer custom_timer;
+static struct rtimer custom_timer;
+static rtimer_clock_t asn_receive_offset;
 struct tsch_asn_t custom_asn;
 int custom_channel;
+static PT_THREAD(update_custom_asn_process(struct rtimer *t, void *ptr));
+static struct pt update_custom_asn_pt;
 
 /* Statistics on the current session */
 unsigned long tx_count;
@@ -463,14 +466,43 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
     }
     return current_topology;
 }
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+static void update_custom_asn(struct rtimer *t, void *ptr){
+    if((unsigned long) asn_receive_offset == 0){
+        TSCH_ASN_INC(custom_asn, (uint16_t) 1);
+        rtimer_set(t, RTIMER_TIME(t)+US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
+    }else{
+        uint32_t shifted_us = RTIMERTICKS_TO_US(RTIMER_TIME(t) - asn_receive_offset); //How many ticks have passed?
+        int asn_to_skip = (int)(shifted_us / 15000);
+        int us_to_shorten = shifted_us % 15000;
 
-static void update_custom_asn(){
-    ctimer_reset(&custom_timer);
-    TSCH_ASN_INC(custom_asn, 1);
+        asn_receive_offset = 0;
+        TSCH_ASN_INC(custom_asn, (uint16_t) asn_to_skip+2);
+        rtimer_set(t, RTIMER_TIME(t)+US_TO_RTIMERTICKS(15000-us_to_shorten), 1, update_custom_asn, NULL);
+        LOG_INFO("SHIFTED us: %lu\n", shifted_us);
+        LOG_INFO("ASN period shortened by: %d\n", us_to_shorten);
+        LOG_INFO("ASN periods skipped: %d\n", asn_to_skip);
+    }
+
     custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
-    LOG_INFO("UPDATING CUSTOM ASN! Current channel: %d\n", custom_channel);
+    LOG_INFO("{asn %02x.%08lx updated. Current channel: %d\n",custom_asn.ms1b, custom_asn.ls4b, custom_channel);
+
+
+
+
 }
 
+static PT_THREAD(update_custom_asn_process(struct rtimer *t, void *ptr)){
+    LOG_INFO("Thread started");
+    PT_BEGIN(&update_custom_asn_pt);
+    LOG_INFO("Thread started 2");
+    rtimer_set(t, RTIMER_NOW()+1, 1, update_custom_asn, NULL);
+    PT_YIELD(&update_custom_asn_pt);
+    PT_END(&update_custom_asn_pt);
+}
+
+
+bool testTimer = false;
 static void
 eb_input(struct input_packet *current_input)
 {
@@ -480,19 +512,32 @@ eb_input(struct input_packet *current_input)
   /* Verify incoming EB (does its ASN match our Rx time?),
    * and update our join priority. */
   struct ieee802154_ies eb_ies;
-  bool testTimer = false;
+  //int chn;
+
+  if(testTimer == false){
+      asn_receive_offset = RTIMER_NOW();
+  }
+
   if(tsch_packet_parse_eb(current_input->payload, current_input->len,
                           &frame, &eb_ies, NULL, 1)) {
 
       if(testTimer == false){
           //ctimer_stop(&custom_timer);
-          ctimer_set(&custom_timer, (clock_time_t)CLOCK_SECOND, update_custom_asn, NULL);
+          custom_asn = eb_ies.ie_asn;
+          rtimer_set(&custom_timer, RTIMER_NOW(), 1, (void (*)(struct rtimer *, void *)) update_custom_asn_process, NULL);
+          //asn_receive_offset = RTIMER_NOW();
+          //custom_asn = current_input->rx_asn;
+          //chn = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
+          //TSCH_ASN_INIT(custom_asn, eb_ies.ie_asn.ms1b, eb_ies.ie_asn.ls4b)
+
+          //rtimer_set(&custom_timer, RTIMER_NOW(), 0, (void (*)(struct rtimer *, void *)) update_custom_asn_process, NULL);
           testTimer = true;
       }
-
+      //LOG_INFO("UPDATING CUSTOM ASN! Current channel: %d\n", custom_channel);
+      //LOG_INFO("UPDATING CUSTOM channel! Calculated channel: %d\n", chn);
       //ctimer_set(&custom_timer, ((int)(((double)((15)*CLOCK_SECOND)) / 1000.0)), update_custom_asn, NULL);
 
-      custom_asn = eb_ies.ie_asn;
+      //custom_asn = eb_ies.ie_asn;
       //TSCH_DEFAULT_TIMESLOT_TIMING
 
 
@@ -920,7 +965,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
       current_channel = scan_channel;
       LOG_INFO("scanning on channel %u\n", scan_channel);
-      LOG_INFO("Custom channel is: %u\n", custom_channel);
+      //LOG_INFO("Custom channel is: %u\n", custom_channel);
 
       current_channel_since = now_time;
     }
@@ -980,6 +1025,7 @@ PROCESS_THREAD(tsch_process, ev, data)
   static struct pt scan_pt;
 
   PROCESS_BEGIN();
+
 
   while(1) {
 
