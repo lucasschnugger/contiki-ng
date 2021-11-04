@@ -41,7 +41,7 @@
 
 #ifndef __TSCH_ASN_H__
 #define __TSCH_ASN_H__
-#include "stdint.h"
+//#include "stdint.h"
 /************ Types ***********/
 
 /** \brief The ASN is an absolute slot number over 5 bytes. */

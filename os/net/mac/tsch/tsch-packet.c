@@ -255,6 +255,7 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   /* Add Slotframe and Link IE */
 #if TSCH_PACKET_EB_WITH_SLOTFRAME_AND_LINK
   {
+    tsch_schedule_print();
     /* Send slotframe 0 with link at timeslot 0 and channel offset 0 */
     struct tsch_slotframe *sf0 = tsch_schedule_get_slotframe_by_handle(0);
     struct tsch_link *link0 = tsch_schedule_get_link_by_timeslot(sf0, 0, 0);
@@ -264,10 +265,8 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
       ies.ie_tsch_slotframe_and_link.slotframe_size = sf0->size.val;
       ies.ie_tsch_slotframe_and_link.num_links = 1;
       ies.ie_tsch_slotframe_and_link.links[0].timeslot = link0->timeslot;
-      ies.ie_tsch_slotframe_and_link.links[0].channel_offset =
-        link0->channel_offset;
-      ies.ie_tsch_slotframe_and_link.links[0].link_options =
-        link0->link_options;
+      ies.ie_tsch_slotframe_and_link.links[0].channel_offset = link0->channel_offset;
+      ies.ie_tsch_slotframe_and_link.links[0].link_options = link0->link_options;
     }
   }
 #endif /* TSCH_PACKET_EB_WITH_SLOTFRAME_AND_LINK */
