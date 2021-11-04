@@ -51,6 +51,7 @@
 #include "net/netstack.h"
 #include "lib/ccm-star.h"
 #include "lib/aes-128.h"
+#include "sys/node-id.h"
 
 /* Log configuration */
 #include "sys/log.h"
@@ -219,6 +220,7 @@ tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
 int
 tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 {
+  LOG_WARN("DEBUG: Starting Create EB\n");
   struct ieee802154_ies ies;
   uint8_t *p;
   int ie_len;
@@ -270,6 +272,54 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   }
 #endif /* TSCH_PACKET_EB_WITH_SLOTFRAME_AND_LINK */
 
+  /* Add Topology Data IE */
+#if TSCH_PACKET_EB_WITH_TOPOLOGY_DATA
+  {
+    LOG_WARN("DEBUG: Starting Writing Topology -> IE\n");
+    ies.ie_topology.src_node_id = node_id;
+    ies.ie_topology.node_count = topology.node_count;
+    int n;
+    bool found_self = false;
+    for(n=0; n<topology.node_count; n++){
+      if(node_id == topology.node_data[n].node_id)
+      {
+        found_self = true;
+        topology.node_data[n].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
+        topology.node_data[n].asn.ms1b = tsch_current_asn.ms1b;
+      }
+      ies.ie_topology.node_data[n].node_id = topology.node_data[n].node_id;
+      ies.ie_topology.node_data[n].channel_offset = topology.node_data[n].channel_offset;
+      ies.ie_topology.node_data[n].asn.ls4b = topology.node_data[n].asn.ls4b;
+      ies.ie_topology.node_data[n].asn.ms1b = topology.node_data[n].asn.ms1b;
+      LOG_WARN("WROTE to EB Node with: ID=%u, Offset=%u, ASN=%02x.%05lx\n",
+               ies.ie_topology.node_data[n].node_id,
+               ies.ie_topology.node_data[n].channel_offset,
+               ies.ie_topology.node_data[n].asn.ms1b,
+               ies.ie_topology.node_data[n].asn.ls4b);
+    }
+    if (found_self == false){
+      topology.node_data[topology.node_count].node_id = node_id;
+      topology.node_data[topology.node_count].channel_offset = 0;
+      topology.node_data[topology.node_count].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
+      topology.node_data[topology.node_count].asn.ms1b = tsch_current_asn.ms1b;
+      topology.node_count += 1;
+      ies.ie_topology.node_data[ies.ie_topology.node_count].node_id = node_id;
+      ies.ie_topology.node_data[ies.ie_topology.node_count].channel_offset = 0;
+      ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
+      ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ms1b = tsch_current_asn.ms1b;
+      LOG_WARN("WROTE to EB Node with: ID=%u, Offset=%u, ASN=%02x.%05lx\n",
+               ies.ie_topology.node_data[ies.ie_topology.node_count].node_id,
+               ies.ie_topology.node_data[ies.ie_topology.node_count].channel_offset,
+               ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ms1b,
+               ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ls4b);
+      ies.ie_topology.node_count += 1;
+    }
+    LOG_WARN("WROTE to EB node count is: %d\n", ies.ie_topology.node_count);
+    LOG_WARN("DEBUG: Finished Writing Topology -> IE\n");
+  }
+#endif /* TSCH_PACKET_EB_WITH_TOPOLOGY_DATA */
+
+
   p = packetbuf_dataptr();
 
   ie_len = frame80215e_create_ie_tsch_synchronization(p,
@@ -302,6 +352,15 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   ie_len = frame80215e_create_ie_tsch_slotframe_and_link(p,
                                                          packetbuf_remaininglen(),
                                                          &ies);
+  if(ie_len < 0) {
+    return -1;
+  }
+  p += ie_len;
+  packetbuf_set_datalen(packetbuf_datalen() + ie_len);
+
+  ie_len = frame80215e_create_ie_tsch_topology_data(p,
+                                                    packetbuf_remaininglen(),
+                                                    &ies);
   if(ie_len < 0) {
     return -1;
   }
@@ -369,6 +428,7 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
     *tsch_sync_ie_offset = packetbuf_hdrlen() + payload_ie_hdr_len;
   }
 
+  LOG_WARN("DEBUG: Finished Create EB\n");
   return packetbuf_totlen();
 }
 /*---------------------------------------------------------------------------*/

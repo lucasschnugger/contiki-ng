@@ -57,6 +57,8 @@
 #include "net/mac/mac-sequence.h"
 #include "lib/random.h"
 #include "net/routing/routing.h"
+#include "net/mac/tsch/tsch-types.h"
+#include "sys/node-id.h"
 
 #if TSCH_WITH_SIXTOP
 #include "net/mac/tsch/sixtop/sixtop.h"
@@ -91,6 +93,9 @@ NBR_TABLE(struct eb_stat, eb_stats);
 /* TSCH channel hopping sequence */
 uint8_t tsch_hopping_sequence[TSCH_HOPPING_SEQUENCE_MAX_LEN];
 struct tsch_asn_divisor_t tsch_hopping_sequence_length;
+
+/* TSCH Topology data */
+struct tsch_topology_data topology;
 
 /* Default TSCH timeslot timing (in micro-second) */
 static const uint16_t *tsch_default_timing_us;
@@ -388,6 +393,7 @@ tsch_keepalive_process_pending(void)
 static void
 eb_input(struct input_packet *current_input)
 {
+  LOG_WARN("DEBUG: Starting EB Input\n");
   /* LOG_INFO("EB received\n"); */
   frame802154_t frame;
   /* Verify incoming EB (does its ASN match our Rx time?),
@@ -488,6 +494,7 @@ eb_input(struct input_packet *current_input)
       }
     }
   }
+  LOG_WARN("DEBUG: Finished EB Input\n");
 }
 /*---------------------------------------------------------------------------*/
 /* Process pending input packet(s) */

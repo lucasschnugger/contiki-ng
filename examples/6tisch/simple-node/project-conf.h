@@ -57,6 +57,12 @@
 /* 6TiSCH minimal schedule length.
  * Larger values result in less frequent active slots: reduces capacity and saves energy. */
 #define TSCH_SCHEDULE_CONF_DEFAULT_LENGTH 3
+/* Include Slotframe and Link IE in EB */
+#define TSCH_PACKET_CONF_EB_WITH_SLOTFRAME_AND_LINK 0
+/* Hopping Sequence channel 20 */
+#define TSCH_CONF_DEFAULT_HOPPING_SEQUENCE TSCH_HOPPING_SEQUENCE_4_4
+/* Include Topology Data IE in EB */
+#define TSCH_PACKET_CONF_EB_WITH_TOPOLOGY_DATA 0
 
 #if WITH_SECURITY
 

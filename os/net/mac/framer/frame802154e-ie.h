@@ -85,6 +85,7 @@ struct ieee802154_ies {
   /* We include and parse only the sequence len and list and omit unused fields */
   uint16_t ie_hopping_sequence_len;
   uint8_t ie_hopping_sequence_list[TSCH_HOPPING_SEQUENCE_MAX_LEN];
+  struct tsch_topology_data ie_topology;
 #if TSCH_WITH_SIXTOP
   /* Payload Sixtop IE */
   const uint8_t *sixtop_ie_content_ptr;
@@ -127,7 +128,8 @@ int frame80215e_create_ie_tsch_timeslot(uint8_t *buf, int len,
 /* MLME sub-IE. TSCH channel hopping sequence. Used in EBs: hopping sequence */
 int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
-
+int frame80215e_create_ie_tsch_topology_data(uint8_t *buf, int len,
+    struct ieee802154_ies *ies);
 /* Parse all Information Elements of a frame */
 int frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
     struct ieee802154_ies *ies);
