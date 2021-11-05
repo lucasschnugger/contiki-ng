@@ -67,6 +67,7 @@ struct tsch_slotframe_and_links {
 
 /* The information elements that we currently support */
 struct ieee802154_ies {
+  struct tsch_topology_data ie_topology;
   /* Header IEs */
   int16_t ie_time_correction;
   uint8_t ie_is_nack;
@@ -85,7 +86,6 @@ struct ieee802154_ies {
   /* We include and parse only the sequence len and list and omit unused fields */
   uint16_t ie_hopping_sequence_len;
   uint8_t ie_hopping_sequence_list[TSCH_HOPPING_SEQUENCE_MAX_LEN];
-  struct tsch_topology_data ie_topology;
 #if TSCH_WITH_SIXTOP
   /* Payload Sixtop IE */
   const uint8_t *sixtop_ie_content_ptr;

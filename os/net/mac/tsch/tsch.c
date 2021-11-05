@@ -974,9 +974,13 @@ PROCESS_THREAD(tsch_pending_events_process, ev, data)
 {
   PROCESS_BEGIN();
   while(1) {
+    LOG_WARN("DEBUG: Pending event YIELD.\n")
     PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
+    LOG_WARN("DEBUG: Pending event RX.\n")
     tsch_rx_process_pending();
+    LOG_WARN("DEBUG: Pending event TX.\n")
     tsch_tx_process_pending();
+    LOG_WARN("DEBUG: Pending event log.\n")
     tsch_log_process_pending();
     tsch_keepalive_process_pending();
 #ifdef TSCH_CALLBACK_SELECT_CHANNELS

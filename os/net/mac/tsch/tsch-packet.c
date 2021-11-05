@@ -447,6 +447,7 @@ int
 tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
                      frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len, int frame_without_mic)
 {
+  LOG_WARN("DEBUG: Started parsing EB packet.\n");
   uint8_t curr_len = 0;
   int ret;
 
@@ -506,6 +507,7 @@ tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
     *hdr_len += ies->ie_payload_ie_offset;
   }
 
+  LOG_WARN("DEBUG: Finished parsing EB packet.\n");
   return curr_len;
 }
 /*---------------------------------------------------------------------------*/
