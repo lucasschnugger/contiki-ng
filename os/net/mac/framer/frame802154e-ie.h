@@ -70,6 +70,7 @@ typedef struct tsch_slotframe_and_links {
 
 /* The information elements that we currently support */
 struct ieee802154_ies {
+    struct tsch_topology_data topology_data;
   /* Header IEs */
   int16_t ie_time_correction;
   uint8_t ie_is_nack;
@@ -80,7 +81,6 @@ struct ieee802154_ies {
   uint8_t ie_tsch_synchronization_offset;
   struct tsch_asn_t ie_asn;
   uint8_t ie_join_priority;
-  struct tsch_topology_data topology_data;
   uint8_t ie_tsch_timeslot_id;
   uint16_t ie_tsch_timeslot[tsch_ts_elements_count];
   struct tsch_slotframe_and_links ie_tsch_slotframe_and_link; //Contains offset

@@ -485,7 +485,7 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
     }
 
     custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
-    LOG_INFO("{asn %02x.%08lx updated. Current channel: %d\n",custom_asn.ms1b, custom_asn.ls4b, custom_channel);
+    //LOG_INFO("{asn %02x.%08lx updated. Current channel: %d\n",custom_asn.ms1b, custom_asn.ls4b, custom_channel);
 
 
 
@@ -506,7 +506,7 @@ bool testTimer = false;
 static void
 eb_input(struct input_packet *current_input)
 {
-
+    LOG_INFO("EN INPUT OK\n");
   /* LOG_INFO("EB received\n"); */
   frame802154_t frame;
   /* Verify incoming EB (does its ASN match our Rx time?),
@@ -661,6 +661,7 @@ tsch_rx_process_pending()
   int16_t input_index;
   /* Loop on accessing (without removing) a pending input packet */
   while((input_index = ringbufindex_peek_get(&input_ringbuf)) != -1) {
+      LOG_INFO("WHILE LOOP OK\n");
     struct input_packet *current_input = &input_array[input_index];
     frame802154_t frame;
     uint8_t ret = frame802154_parse(current_input->payload, current_input->len, &frame);
@@ -669,6 +670,7 @@ tsch_rx_process_pending()
       && frame.fcf.frame_version == FRAME802154_IEEE802154_2015
       && frame.fcf.frame_type == FRAME802154_BEACONFRAME;
 
+    LOG_INFO("input package is data: %d, is eb: %d\n", is_data, is_eb);
     if(is_data) {
       /* Skip EBs and other control messages */
       /* Copy to packetbuf for processing */
