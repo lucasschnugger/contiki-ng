@@ -1022,6 +1022,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
 
 
+
 PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_number))
 {
   PT_BEGIN(pt);
