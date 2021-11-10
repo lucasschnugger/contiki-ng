@@ -412,46 +412,6 @@ void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current
     //return current_topology;
 }
 
-
-//Len is length of IE excluding header
-int frame80215e_create_ie_tsch_topology_data(uint8_t *buf, struct tsch_topology_data *current_topology){
-    int offset = 2;
-
-    //Add src_node_id
-    WRITE16(buf + offset, current_topology->src_node_id); //Set node src id
-    offset += 2;
-
-    //Add data
-    WRITE16(buf + offset, current_topology->node_count); //Set node count
-    offset += 2;
-
-    //Fill node data for each node
-    int i;
-    for(i = 0; i < current_topology->node_count; i++){
-        //Set node channel offset
-        WRITE16(buf + offset, current_topology->node_data[i].channel_offset);
-        offset += 2;
-
-        //Set ASN LSB & MSB
-        buf[offset] = current_topology->node_data[i].asn.ls4b;
-        buf[offset+1] = current_topology->node_data[i].asn.ls4b >> 8;
-        buf[offset+2] = current_topology->node_data[i].asn.ls4b >> 16;
-        buf[offset+3] = current_topology->node_data[i].asn.ls4b >> 24;
-        buf[offset+4] = current_topology->node_data[i].asn.ms1b;
-        offset += 5;
-
-        //Set node id (identifier)
-        LOG_WARN("Writing node to EB with id: %u!\n", current_topology->node_data[i].node_id);
-        WRITE16(buf + offset, current_topology->node_data[i].node_id);
-        offset += 2;
-    }
-
-    //Create header
-    create_mlme_long_ie_descriptor(buf, MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE, offset-2); //set header with data length minus header
-
-    return offset;
-}
-
 /* Parse a header IE */
 static int
 frame802154e_parse_header_ie(const uint8_t *buf, int len,

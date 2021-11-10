@@ -398,12 +398,8 @@ tsch_keepalive_process_pending(void)
   }
 }
 /*---------------------------------------------------------------------------*/
-struct tsch_topology_data * tsch_get_topology_data(){
-    return &topology_data;
-}
-/*static void tsch_set_topology_data(struct tsch_topology_data *input_topology){
-    topology_data = input_topology;
-}*/
+
+
 struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology){
 
     //If any topology element is null, return the other
@@ -556,18 +552,18 @@ eb_input(struct input_packet *current_input)
     }
 
     LOG_INFO("TOPOLOGY DATA:\n");
-    LOG_INFO("From node ID %d, Node count %d\n", eb_ies.topology_data.src_node_id, eb_ies.topology_data.node_count);
+    LOG_INFO("From node ID %d, Node count %d\n", eb_ies.ie_topology.src_node_id, eb_ies.ie_topology.node_count);
     int g;
-    for (g=0; g<eb_ies.topology_data.node_count; g++){
+    for (g=0; g<eb_ies.ie_topology.node_count; g++){
       LOG_INFO("Node %d, Offset %d, ASN %02x.%03lx\n",
-               eb_ies.topology_data.node_data[g].node_id,
-               eb_ies.topology_data.node_data[g].channel_offset,
-               eb_ies.topology_data.node_data[g].asn.ms1b,
-               eb_ies.topology_data.node_data[g].asn.ls4b);
+               eb_ies.ie_topology.node_data[g].node_id,
+               eb_ies.ie_topology.node_data[g].channel_offset,
+               eb_ies.ie_topology.node_data[g].asn.ms1b,
+               eb_ies.ie_topology.node_data[g].asn.ls4b);
     }
 
 
-    topology_data = *merge_topology_data(&topology_data, &eb_ies.topology_data);
+    topology = *merge_topology_data(&topology, &eb_ies.ie_topology);
 
 
 #if TSCH_AUTOSELECT_TIME_SOURCE
@@ -1019,10 +1015,6 @@ PT_THREAD(tsch_scan(struct pt *pt))
   PT_END(pt);
 }
 
-
-
-
-
 PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_number))
 {
   PT_BEGIN(pt);
@@ -1030,27 +1022,27 @@ PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_num
   static struct input_packet input_eb;
   static struct etimer scan_timer;
   /* Time when we started scanning on current_channel */
-  static clock_time_t current_channel_since;
+  //static clock_time_t current_channel_since;
 
   TSCH_ASN_INIT(tsch_current_asn, 0, 0);
 
   etimer_set(&scan_timer, CLOCK_SECOND / TSCH_ASSOCIATION_POLL_FREQUENCY);
-  current_channel_since = clock_time();
+  //current_channel_since = clock_time();
 
-  while(custom_asn.m1sb == asn.m1sb && custom_asn.l4sb == asn.l4sb && !tsch_is_coordinator) {
+  while(custom_asn.ms1b == asn.ms1b && custom_asn.ls4b == asn.ls4b && !tsch_is_coordinator) {
     /* Hop to any channel offset */
-    static uint8_t current_channel = channel_number;
+    uint8_t current_channel = channel_number;
 
     /* We are not coordinator, try to associate */
     rtimer_clock_t t0;
     int is_packet_pending = 0;
-    clock_time_t now_time = clock_time();
+    //clock_time_t now_time = clock_time();
 
     bool radio_ready = false;
     if(!radio_ready) {
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, current_channel);
       LOG_INFO("scanning on channel %u\n", current_channel);
-      current_channel_since = now_time;
+      //current_channel_since = now_time;
       radio_ready = true;
     }
 
@@ -1212,13 +1204,13 @@ PROCESS_THREAD(tsch_pending_events_process, ev, data)
 {
   PROCESS_BEGIN();
   while(1) {
-    LOG_WARN("DEBUG: Pending event YIELD.\n")
+    LOG_WARN("DEBUG: Pending event YIELD.\n");
     PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
-    LOG_WARN("DEBUG: Pending event RX.\n")
+    LOG_WARN("DEBUG: Pending event RX.\n");
     tsch_rx_process_pending();
-    LOG_WARN("DEBUG: Pending event TX.\n")
+    LOG_WARN("DEBUG: Pending event TX.\n");
     tsch_tx_process_pending();
-    LOG_WARN("DEBUG: Pending event log.\n")
+    LOG_WARN("DEBUG: Pending event log.\n");
     tsch_log_process_pending();
     tsch_keepalive_process_pending();
 #ifdef TSCH_CALLBACK_SELECT_CHANNELS
