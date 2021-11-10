@@ -526,9 +526,10 @@ tsch_rx_process_pending()
     } else if(is_eb) {
       eb_input(current_input);
     }
-
+    LOG_WARN("DEBUG: ringbufindex_get(&input_ringbuf) started");
     /* Remove input from ringbuf */
     ringbufindex_get(&input_ringbuf);
+    LOG_WARN("DEBUG: ringbufindex_get(&input_ringbuf) ended");
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -855,6 +856,84 @@ PT_THREAD(tsch_scan(struct pt *pt))
       etimer_reset(&scan_timer);
       PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
     }
+  }
+
+  PT_END(pt);
+}
+
+
+
+
+PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_number))
+{
+  PT_BEGIN(pt);
+
+  static struct input_packet input_eb;
+  static struct etimer scan_timer;
+  /* Time when we started scanning on current_channel */
+  static clock_time_t current_channel_since;
+
+  TSCH_ASN_INIT(tsch_current_asn, 0, 0);
+
+  etimer_set(&scan_timer, CLOCK_SECOND / TSCH_ASSOCIATION_POLL_FREQUENCY);
+  current_channel_since = clock_time();
+
+  while(custom_asn.m1sb == asn.m1sb && custom_asn.l4sb == asn.l4sb && !tsch_is_coordinator) {
+    /* Hop to any channel offset */
+    static uint8_t current_channel = channel_number;
+
+    /* We are not coordinator, try to associate */
+    rtimer_clock_t t0;
+    int is_packet_pending = 0;
+    clock_time_t now_time = clock_time();
+
+    bool radio_ready = false;
+    if(!radio_ready) {
+      NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, current_channel);
+      LOG_INFO("scanning on channel %u\n", current_channel);
+      current_channel_since = now_time;
+      radio_ready = true;
+    }
+
+    /* Turn radio on and wait for EB */
+    NETSTACK_RADIO.on();
+
+    is_packet_pending = NETSTACK_RADIO.pending_packet();
+    if(!is_packet_pending && NETSTACK_RADIO.receiving_packet()){
+      /* If we are currently receiving a packet, wait until end of reception */
+      t0 = RTIMER_NOW();
+      RTIMER_BUSYWAIT_UNTIL_ABS((is_packet_pending = NETSTACK_RADIO.pending_packet()), t0, RTIMER_SECOND / 100);
+      LOG_INFO("DEBUG:Custom scanner: Started receiving package");
+    }
+
+    if(is_packet_pending) {
+      LOG_INFO("DEBUG:Custom scanner: Received package is ready in buffer");
+      rtimer_clock_t t1;
+      /* Read packet */
+      input_eb.len = NETSTACK_RADIO.read(input_eb.payload, TSCH_PACKET_MAX_LEN);
+
+      if(input_eb.len > 0) {
+        /* Save packet timestamp */
+        NETSTACK_RADIO.get_object(RADIO_PARAM_LAST_PACKET_TIMESTAMP, &t0, sizeof(rtimer_clock_t));
+        t1 = RTIMER_NOW();
+
+        /* Parse EB and attempt to associate */
+        LOG_INFO("scan: received packet (%u bytes) on channel %u\n", input_eb.len, current_channel);
+
+        /* Sanity-check the timestamp */
+        if(ABS(RTIMER_CLOCK_DIFF(t0, t1)) < 2ul * RTIMER_SECOND) {
+          LOG_INFO("DEBUG:Custom scanner: Finished receiving custom scanner package");
+          //tsch_associate(&input_eb, t0);
+        } else {
+          LOG_WARN("scan: dropping packet, timestamp too far from current time %u %u\n",
+                   (unsigned)t0,
+                   (unsigned)t1
+          );
+        }
+      }
+    }
+
+    NETSTACK_RADIO.off();
   }
 
   PT_END(pt);
