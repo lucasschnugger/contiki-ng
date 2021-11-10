@@ -39,10 +39,11 @@
 
 #include <string.h>
 #include "net/mac/framer/frame802154e-ie.h"
-#include "sys/node-id.h"
 
 /* Log configuration */
 #include "sys/log.h"
+#include "lib/random.h"
+#include "sys/node-id.h"
 #define LOG_MODULE "Frame 15.4"
 #define LOG_LEVEL LOG_LEVEL_FRAMER
 
@@ -377,6 +378,80 @@ int frame80215e_create_ie_tsch_topology_data(u_int8_t *buf, int len, struct ieee
   return 0;
 }
 
+void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current_topology
+        , struct ieee802154_ies *ies,
+                struct tsch_asn_t tsch_current_asn) {
+    //Update topology data element
+    LOG_WARN("UPDATING TOPOLOGY NODE COUNT %d!\n", current_topology->node_count);
+
+    int i;
+    bool found_self = false;
+    for(i = 0; i < current_topology->node_count; i++){
+        //If node id is own, update channel offset.
+        if(node_id == current_topology->node_data[i].node_id)
+        {
+            found_self = true;
+            current_topology->node_data[i].channel_offset = 0;//ies->ie_tsch_slotframe_and_link.
+            current_topology->node_data[i].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
+            current_topology->node_data[i].asn.ms1b = tsch_current_asn.ms1b;
+        }
+    }
+
+
+    if(found_self == false && node_id > 0){
+        current_topology->node_data[current_topology->node_count].channel_offset = 0;
+        current_topology->node_data[current_topology->node_count].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
+        current_topology->node_data[current_topology->node_count].asn.ms1b = tsch_current_asn.ms1b;
+        current_topology->node_data[current_topology->node_count].node_id = node_id;
+        current_topology->node_count += 1;
+    }
+
+    current_topology->src_node_id = node_id;
+
+    //tsch_set_topology_data(current_topology)
+    //return current_topology;
+}
+
+
+//Len is length of IE excluding header
+int frame80215e_create_ie_tsch_topology_data(uint8_t *buf, struct tsch_topology_data *current_topology){
+    int offset = 2;
+
+    //Add src_node_id
+    WRITE16(buf + offset, current_topology->src_node_id); //Set node src id
+    offset += 2;
+
+    //Add data
+    WRITE16(buf + offset, current_topology->node_count); //Set node count
+    offset += 2;
+
+    //Fill node data for each node
+    int i;
+    for(i = 0; i < current_topology->node_count; i++){
+        //Set node channel offset
+        WRITE16(buf + offset, current_topology->node_data[i].channel_offset);
+        offset += 2;
+
+        //Set ASN LSB & MSB
+        buf[offset] = current_topology->node_data[i].asn.ls4b;
+        buf[offset+1] = current_topology->node_data[i].asn.ls4b >> 8;
+        buf[offset+2] = current_topology->node_data[i].asn.ls4b >> 16;
+        buf[offset+3] = current_topology->node_data[i].asn.ls4b >> 24;
+        buf[offset+4] = current_topology->node_data[i].asn.ms1b;
+        offset += 5;
+
+        //Set node id (identifier)
+        LOG_WARN("Writing node to EB with id: %u!\n", current_topology->node_data[i].node_id);
+        WRITE16(buf + offset, current_topology->node_data[i].node_id);
+        offset += 2;
+    }
+
+    //Create header
+    create_mlme_long_ie_descriptor(buf, MLME_LONG_IE_TSCH_VENDOR_SPECIFIC_NESTED_IE, offset-2); //set header with data length minus header
+
+    return offset;
+}
+
 /* Parse a header IE */
 static int
 frame802154e_parse_header_ie(const uint8_t *buf, int len,
@@ -692,6 +767,7 @@ frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,
     buf_size -= len;
   }
 
+  buf++; //TODO why was this added?
   if(parsing_state == PARSING_HEADER_IE) {
     ies->ie_payload_ie_offset = buf - start; /* Save IE header len */
   }

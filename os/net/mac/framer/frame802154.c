@@ -494,7 +494,8 @@ frame802154_parse_fcf(uint8_t *data, frame802154_fcf_t *pfcf)
  *
  *   \param data The input data from the radio chip.
  *   \param len The size of the input data
- *   \param pf The frame802154_t struct to store the parsed frame information.
+ *   \param pf The frame802154_t struct to store the parsed frame information.'
+ *   PARSE FRAME
  */
 int
 frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
@@ -624,6 +625,8 @@ frame802154_parse(uint8_t *data, int len, frame802154_t *pf)
   }
 #endif /* LLSEC802154_USES_AUX_HEADER */
 
+    //pf->test = p[0];
+    //p++;
   /* header length */
   c = p - data;
   /* payload length */

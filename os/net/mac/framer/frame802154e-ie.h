@@ -52,18 +52,18 @@
 #define FRAME802154E_IE_MAX_LINKS       4
 
 /* Structures used for the Slotframe and Links information element */
-struct tsch_slotframe_and_links_link {
+typedef struct tsch_slotframe_and_links_link {
   uint16_t timeslot;
   uint16_t channel_offset;
   uint8_t link_options;
-};
-struct tsch_slotframe_and_links {
+} t1;
+typedef struct tsch_slotframe_and_links {
   uint8_t num_slotframes; /* We support only 0 or 1 slotframe in this IE */
-  uint8_t slotframe_handle;
+  uint8_t slotframe_handle; // Some id for the slotframe
   uint16_t slotframe_size;
   uint8_t num_links;
   struct tsch_slotframe_and_links_link links[FRAME802154E_IE_MAX_LINKS];
-};
+} t2;
 
 /* The information elements that we currently support */
 struct ieee802154_ies {
@@ -80,7 +80,7 @@ struct ieee802154_ies {
   uint8_t ie_join_priority;
   uint8_t ie_tsch_timeslot_id;
   uint16_t ie_tsch_timeslot[tsch_ts_elements_count];
-  struct tsch_slotframe_and_links ie_tsch_slotframe_and_link;
+  struct tsch_slotframe_and_links ie_tsch_slotframe_and_link; //Contains offset
   /* Payload Long MLME IEs */
   uint8_t ie_channel_hopping_sequence_id;
   /* We include and parse only the sequence len and list and omit unused fields */
@@ -128,6 +128,11 @@ int frame80215e_create_ie_tsch_timeslot(uint8_t *buf, int len,
 /* MLME sub-IE. TSCH channel hopping sequence. Used in EBs: hopping sequence */
 int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
+
+void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current_topology,
+        struct ieee802154_ies *ies,
+                struct tsch_asn_t tsch_current_asn);
+
 int frame80215e_create_ie_tsch_topology_data(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
 /* Parse all Information Elements of a frame */

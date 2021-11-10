@@ -203,6 +203,7 @@ typedef struct {
   uint8_t src_addr[8];            /**< Source address */
   frame802154_fcf_t fcf;          /**< Frame control field  */
   uint8_t seq;                    /**< Sequence number */
+  //uint16_t test;                   /**< test*/
   uint16_t dest_pid;              /**< Destination PAN ID */
   uint16_t src_pid;               /**< Source PAN ID */
   frame802154_aux_hdr_t aux_hdr;  /**< Aux security header */

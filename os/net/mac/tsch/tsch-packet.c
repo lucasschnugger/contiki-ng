@@ -217,6 +217,8 @@ tsch_packet_parse_eack(const uint8_t *buf, int buf_size,
 }
 /*---------------------------------------------------------------------------*/
 /* Create an EB packet */
+// CREATE EB
+// CREATE FRAME
 int
 tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 {
@@ -255,6 +257,7 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   /* Add Slotframe and Link IE */
 #if TSCH_PACKET_EB_WITH_SLOTFRAME_AND_LINK
   {
+    tsch_schedule_print();
     /* Send slotframe 0 with link at timeslot 0 and channel offset 0 */
     struct tsch_slotframe *sf0 = tsch_schedule_get_slotframe_by_handle(0);
     struct tsch_link *link0 = tsch_schedule_get_link_by_timeslot(sf0, 0, 0);
@@ -264,10 +267,8 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
       ies.ie_tsch_slotframe_and_link.slotframe_size = sf0->size.val;
       ies.ie_tsch_slotframe_and_link.num_links = 1;
       ies.ie_tsch_slotframe_and_link.links[0].timeslot = link0->timeslot;
-      ies.ie_tsch_slotframe_and_link.links[0].channel_offset =
-        link0->channel_offset;
-      ies.ie_tsch_slotframe_and_link.links[0].link_options =
-        link0->link_options;
+      ies.ie_tsch_slotframe_and_link.links[0].channel_offset = link0->channel_offset;
+      ies.ie_tsch_slotframe_and_link.links[0].link_options = link0->link_options;
     }
   }
 #endif /* TSCH_PACKET_EB_WITH_SLOTFRAME_AND_LINK */
@@ -443,6 +444,7 @@ tsch_packet_update_eb(uint8_t *buf, int buf_size, uint8_t tsch_sync_ie_offset)
 }
 /*---------------------------------------------------------------------------*/
 /* Parse a IEEE 802.15.4e TSCH Enhanced Beacon (EB) */
+// PARSE EB
 int
 tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
                      frame802154_t *frame, struct ieee802154_ies *ies, uint8_t *hdr_len, int frame_without_mic)
@@ -466,7 +468,12 @@ tsch_packet_parse_eb(const uint8_t *buf, int buf_size,
     LOG_INFO("! parse_eb: frame is not a TSCH beacon." \
            " Frame version %u, type %u, FCF %02x %02x\n",
            frame->fcf.frame_version, frame->fcf.frame_type, buf[0], buf[1]);
-    LOG_INFO("! parse_eb: frame was from 0x%x/", frame->src_pid);
+      LOG_INFO("! parse_eb: frame was from \n");
+      LOG_INFO_LLADDR((const linkaddr_t *)&frame->src_addr);
+      LOG_INFO("\n! parse_eb: frame was to \n ");
+      LOG_INFO_LLADDR((const linkaddr_t *)&frame->dest_addr);
+      //deployment_id_from_lladdr()
+
     LOG_INFO_LLADDR((const linkaddr_t *)&frame->src_addr);
     LOG_INFO_(" to 0x%x/", frame->dest_pid);
     LOG_INFO_LLADDR((const linkaddr_t *)&frame->dest_addr);

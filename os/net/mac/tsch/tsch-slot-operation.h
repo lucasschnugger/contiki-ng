@@ -94,5 +94,8 @@ void tsch_slot_operation_sync(rtimer_clock_t next_slot_start,
  */
 void tsch_slot_operation_start(void);
 
+uint8_t
+tsch_calculate_channel(struct tsch_asn_t *asn, uint16_t channel_offset);
+
 #endif /* __TSCH_SLOT_OPERATION_H__ */
 /** @} */
