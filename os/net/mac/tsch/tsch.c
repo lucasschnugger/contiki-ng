@@ -155,8 +155,9 @@ static struct rtimer custom_timer;
 static rtimer_clock_t asn_receive_offset;
 struct tsch_asn_t custom_asn;
 int custom_channel;
-static PT_THREAD(update_custom_asn_process(struct rtimer *t, void *ptr));
+PT_THREAD(update_custom_asn_process(struct rtimer *t));
 static struct pt update_custom_asn_pt;
+static struct pt scan_pt;
 
 /* Statistics on the current session */
 unsigned long tx_count;
@@ -468,30 +469,33 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
         TSCH_ASN_INC(custom_asn, (uint16_t) 1);
         rtimer_set(t, RTIMER_TIME(t)+US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
     }else{
-        uint32_t shifted_us = RTIMERTICKS_TO_US(RTIMER_TIME(t) - asn_receive_offset); //How many ticks have passed?
+        rtimer_clock_t testTime = RTIMER_NOW();
+        int shifted_us = RTIMERTICKS_TO_US(testTime - asn_receive_offset); //How many ticks have passed?
         int asn_to_skip = (int)(shifted_us / 15000);
         int us_to_shorten = shifted_us % 15000;
 
-        asn_receive_offset = 0;
-        TSCH_ASN_INC(custom_asn, (uint16_t) asn_to_skip+2);
+
+        TSCH_ASN_INC(custom_asn, (uint16_t) asn_to_skip);
         rtimer_set(t, RTIMER_TIME(t)+US_TO_RTIMERTICKS(15000-us_to_shorten), 1, update_custom_asn, NULL);
-        LOG_INFO("SHIFTED us: %lu\n", shifted_us);
-        LOG_INFO("ASN period shortened by: %d\n", us_to_shorten);
-        LOG_INFO("ASN periods skipped: %d\n", asn_to_skip);
+        int temp_r_o = asn_receive_offset;
+        int a = testTime - temp_r_o;
+        asn_receive_offset = 0;
+        LOG_DBG("\nSHIFTED offset 2: %d\n", temp_r_o);
+        LOG_DBG("SHIFTED r time t: %d\n", testTime);
+        LOG_DBG("SHIFTED r timer ticks: %d\n", a);
+        LOG_DBG("SHIFTED us: %d\n", shifted_us);
+        LOG_DBG("SHIFTED ASN period shortened by: %d\n", us_to_shorten);
+        LOG_DBG("SHIFTED ASN periods skipped: %d\n", asn_to_skip);
     }
 
     custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
-    //LOG_INFO("{asn %02x.%08lx updated. Current channel: %d\n",custom_asn.ms1b, custom_asn.ls4b, custom_channel);
-
-
-
-
+    LOG_INFO("{asn %02x.%08lx updated. Current channel: %d\n",custom_asn.ms1b, custom_asn.ls4b, custom_channel);
 }
 
-static PT_THREAD(update_custom_asn_process(struct rtimer *t, void *ptr)){
-    LOG_INFO("Thread started");
+PT_THREAD(update_custom_asn_process(struct rtimer *t)){
+    LOG_WARN("Thread started");
     PT_BEGIN(&update_custom_asn_pt);
-    LOG_INFO("Thread started 2");
+    LOG_WARN("Thread started 2");
     rtimer_set(t, RTIMER_NOW()+1, 1, update_custom_asn, NULL);
     PT_YIELD(&update_custom_asn_pt);
     PT_END(&update_custom_asn_pt);
@@ -510,25 +514,10 @@ eb_input(struct input_packet *current_input)
   struct ieee802154_ies eb_ies;
   //int chn;
 
-  if(testTimer == false){
-      asn_receive_offset = RTIMER_NOW();
-  }
 
   if(tsch_packet_parse_eb(current_input->payload, current_input->len,
                           &frame, &eb_ies, NULL, 1)) {
 
-      if(testTimer == false){
-          //ctimer_stop(&custom_timer);
-          custom_asn = eb_ies.ie_asn;
-          rtimer_set(&custom_timer, RTIMER_NOW(), 1, (void (*)(struct rtimer *, void *)) update_custom_asn_process, NULL);
-          //asn_receive_offset = RTIMER_NOW();
-          //custom_asn = current_input->rx_asn;
-          //chn = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
-          //TSCH_ASN_INIT(custom_asn, eb_ies.ie_asn.ms1b, eb_ies.ie_asn.ls4b)
-
-          //rtimer_set(&custom_timer, RTIMER_NOW(), 0, (void (*)(struct rtimer *, void *)) update_custom_asn_process, NULL);
-          testTimer = true;
-      }
       //LOG_INFO("UPDATING CUSTOM ASN! Current channel: %d\n", custom_channel);
       //LOG_INFO("UPDATING CUSTOM channel! Calculated channel: %d\n", chn);
       //ctimer_set(&custom_timer, ((int)(((double)((15)*CLOCK_SECOND)) / 1000.0)), update_custom_asn, NULL);
@@ -931,6 +920,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
  * Listen to different channels, and when receiving an EB,
  * attempt to associate.
  */
+bool lockTimer = false;
 PT_THREAD(tsch_scan(struct pt *pt))
 {
   PT_BEGIN(pt);
@@ -948,12 +938,14 @@ PT_THREAD(tsch_scan(struct pt *pt))
   while(!tsch_is_associated && !tsch_is_coordinator) {
     /* Hop to any channel offset */
     static uint8_t current_channel = 0;
-
     /* We are not coordinator, try to associate */
     rtimer_clock_t t0;
     int is_packet_pending = 0;
     clock_time_t now_time = clock_time();
-
+      if(lockTimer == false) {
+          LOG_INFO("SETTING ASN OFFSET");
+          asn_receive_offset = RTIMER_NOW();
+      }
     /* Switch to a (new) channel for scanning */
     if(current_channel == 0 || now_time - current_channel_since > TSCH_CHANNEL_SCAN_DURATION) {
       /* Pick a channel at random in TSCH_JOIN_HOPPING_SEQUENCE */
@@ -992,7 +984,20 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
         /* Sanity-check the timestamp */
         if(ABS(RTIMER_CLOCK_DIFF(t0, t1)) < 2ul * RTIMER_SECOND) {
-          tsch_associate(&input_eb, t0);
+            lockTimer = true;
+            //asn_receive_offset = RTIMER_NOW();
+            tsch_associate(&input_eb, t0);
+            if(testTimer == false){
+                LOG_INFO("SHIFTED asn offset: %d\n", asn_receive_offset);
+                frame802154_t frame;
+                struct ieee802154_ies ies;
+                uint8_t hdrlen;
+                tsch_packet_parse_eb(input_eb.payload, input_eb.len,
+                                     &frame, &ies, &hdrlen, 0);
+                custom_asn = ies.ie_asn;
+                PT_SPAWN(&scan_pt, &update_custom_asn_pt, update_custom_asn_process(&custom_timer));
+                testTimer = true;
+            }
         } else {
           LOG_WARN("scan: dropping packet, timestamp too far from current time %u %u\n",
             (unsigned)t0,
@@ -1092,9 +1097,10 @@ PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_num
 
 /*---------------------------------------------------------------------------*/
 /* The main TSCH process */
+
+
 PROCESS_THREAD(tsch_process, ev, data)
 {
-  static struct pt scan_pt;
 
   PROCESS_BEGIN();
 
@@ -1204,13 +1210,13 @@ PROCESS_THREAD(tsch_pending_events_process, ev, data)
 {
   PROCESS_BEGIN();
   while(1) {
-    LOG_WARN("DEBUG: Pending event YIELD.\n");
+    //LOG_WARN("DEBUG: Pending event YIELD.\n");
     PROCESS_YIELD_UNTIL(ev == PROCESS_EVENT_POLL);
-    LOG_WARN("DEBUG: Pending event RX.\n");
+    //LOG_WARN("DEBUG: Pending event RX.\n");
     tsch_rx_process_pending();
-    LOG_WARN("DEBUG: Pending event TX.\n");
+    //LOG_WARN("DEBUG: Pending event TX.\n");
     tsch_tx_process_pending();
-    LOG_WARN("DEBUG: Pending event log.\n");
+    //LOG_WARN("DEBUG: Pending event log.\n");
     tsch_log_process_pending();
     tsch_keepalive_process_pending();
 #ifdef TSCH_CALLBACK_SELECT_CHANNELS
