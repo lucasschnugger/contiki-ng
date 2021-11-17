@@ -470,7 +470,8 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
         rtimer_set(t, RTIMER_TIME(t)+US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
     }else{
         rtimer_clock_t testTime = RTIMER_NOW();
-        int shifted_us = RTIMERTICKS_TO_US(testTime - asn_receive_offset); //How many ticks have passed?
+        LOG_WARN("SHIFTED r time t: %d\n", testTime);
+        int shifted_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(testTime, asn_receive_offset))); //How many ticks have passed?
         int asn_to_skip = (int)(shifted_us / 15000);
         int us_to_shorten = shifted_us % 15000;
 
@@ -480,12 +481,12 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
         int temp_r_o = asn_receive_offset;
         int a = testTime - temp_r_o;
         asn_receive_offset = 0;
-        LOG_DBG("\nSHIFTED offset 2: %d\n", temp_r_o);
-        LOG_DBG("SHIFTED r time t: %d\n", testTime);
-        LOG_DBG("SHIFTED r timer ticks: %d\n", a);
-        LOG_DBG("SHIFTED us: %d\n", shifted_us);
-        LOG_DBG("SHIFTED ASN period shortened by: %d\n", us_to_shorten);
-        LOG_DBG("SHIFTED ASN periods skipped: %d\n", asn_to_skip);
+        LOG_WARN("\nSHIFTED offset 2: %d\n", temp_r_o);
+
+        LOG_WARN("SHIFTED r timer ticks: %d\n", a);
+        LOG_WARN("SHIFTED us: %d\n", shifted_us);
+        LOG_WARN("SHIFTED ASN period shortened by: %d\n", us_to_shorten);
+        LOG_WARN("SHIFTED ASN periods skipped: %d\n", asn_to_skip);
     }
 
     custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
@@ -994,7 +995,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
                 uint8_t hdrlen;
                 tsch_packet_parse_eb(input_eb.payload, input_eb.len,
                                      &frame, &ies, &hdrlen, 0);
-                custom_asn = ies.ie_asn;
+                TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
                 PT_SPAWN(&scan_pt, &update_custom_asn_pt, update_custom_asn_process(&custom_timer));
                 testTimer = true;
             }
