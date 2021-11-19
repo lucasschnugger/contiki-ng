@@ -155,9 +155,10 @@ static struct rtimer custom_timer;
 static rtimer_clock_t asn_receive_offset;
 struct tsch_asn_t custom_asn;
 int custom_channel;
-PT_THREAD(update_custom_asn_process(struct rtimer *t));
+PROCESS(update_custom_asn_process, "Our function");
 static struct pt update_custom_asn_pt;
 static struct pt scan_pt;
+//static struct pt scan_custom_pt;
 
 /* Statistics on the current session */
 unsigned long tx_count;
@@ -168,6 +169,8 @@ int32_t max_drift_seen;
 
 /* TSCH processes and protothreads */
 PT_THREAD(tsch_scan(struct pt *pt));
+PT_THREAD(tsch_scan_custom(struct pt *pt));
+PT_THREAD(tsch_scan_custom2());
 PROCESS(tsch_process, "main process");
 PROCESS(tsch_send_eb_process, "send EB process");
 PROCESS(tsch_pending_events_process, "pending events process");
@@ -465,13 +468,15 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 }
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 static void update_custom_asn(struct rtimer *t, void *ptr){
+    //LOG_INFO("custom asn updater called\n");
     if((unsigned long) asn_receive_offset == 0){
         TSCH_ASN_INC(custom_asn, (uint16_t) 1);
         rtimer_set(t, RTIMER_TIME(t)+US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
     }else{
         rtimer_clock_t testTime = RTIMER_NOW();
-        LOG_WARN("SHIFTED r time t: %d\n", testTime);
-        int shifted_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(testTime, asn_receive_offset))); //How many ticks have passed?
+        //LOG_WARN("SHIFTED r time t: %d\n", testTime);
+        int shifted_us = RTIMERTICKS_TO_US(RTIMER_CLOCK_DIFF(asn_receive_offset, testTime)); //How many ticks have passed?
+        //shifted_us += 20000;
         int asn_to_skip = (int)(shifted_us / 15000);
         int us_to_shorten = shifted_us % 15000;
 
@@ -488,18 +493,34 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
         LOG_WARN("SHIFTED ASN period shortened by: %d\n", us_to_shorten);
         LOG_WARN("SHIFTED ASN periods skipped: %d\n", asn_to_skip);
     }
+    uint16_t index_of_0, index_of_offset = 0;
+    if(tsch_hopping_sequence_length.val == 0){
+        struct tsch_asn_divisor_t thsl;
+        //int hopSeqLen = sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE) / sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE[0]);
+        thsl.val = 4;
+        thsl.asn_ms1b_remainder = ((0xffffffff % (4)) + 1) % (4);
 
-    custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
+        index_of_0 = TSCH_ASN_MOD(custom_asn, thsl);
+        index_of_offset = (index_of_0 + 0) % 4;
+        //int custom_channel_repo[4] = {15, 20, 25, 26};
+        custom_channel = tsch_hopping_sequence[index_of_offset];
+    }else{
+        custom_channel = tsch_calculate_channel(&custom_asn, (uint16_t) 0);
+    }
+
     LOG_INFO("{asn %02x.%08lx updated. Current channel: %d\n",custom_asn.ms1b, custom_asn.ls4b, custom_channel);
 }
 
-PT_THREAD(update_custom_asn_process(struct rtimer *t)){
-    LOG_WARN("Thread started");
+PROCESS_THREAD(update_custom_asn_process, ev, data){
+    //LOG_WARN("Thread started");
     PT_BEGIN(&update_custom_asn_pt);
-    LOG_WARN("Thread started 2");
-    rtimer_set(t, RTIMER_NOW()+1, 1, update_custom_asn, NULL);
+    //LOG_WARN("Thread started 2");
+    rtimer_set(&custom_timer, RTIMER_NOW()+1, 1, update_custom_asn, NULL);
+    //update_custom_asn(&custom_timer, NULL);
     PT_YIELD(&update_custom_asn_pt);
     PT_END(&update_custom_asn_pt);
+
+
 }
 
 
@@ -989,15 +1010,19 @@ PT_THREAD(tsch_scan(struct pt *pt))
             //asn_receive_offset = RTIMER_NOW();
             tsch_associate(&input_eb, t0);
             if(testTimer == false){
-                LOG_INFO("SHIFTED asn offset: %d\n", asn_receive_offset);
+                //LOG_INFO("SHIFTED asn offset: %d\n", asn_receive_offset);
                 frame802154_t frame;
                 struct ieee802154_ies ies;
                 uint8_t hdrlen;
                 tsch_packet_parse_eb(input_eb.payload, input_eb.len,
                                      &frame, &ies, &hdrlen, 0);
                 TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
-                PT_SPAWN(&scan_pt, &update_custom_asn_pt, update_custom_asn_process(&custom_timer));
+                //LOG_INFO("DEBUG: Trying to start asn tracker\n");
+                process_start(&update_custom_asn_process, NULL);
+                //LOG_INFO("DEBUG: Trying to start custom scan\n");
+                //PT_SPAWN(&scan_pt, &scan_custom_pt, tsch_scan_custom());
                 testTimer = true;
+                while(true){}
             }
         } else {
           LOG_WARN("scan: dropping packet, timestamp too far from current time %u %u\n",
@@ -1021,8 +1046,125 @@ PT_THREAD(tsch_scan(struct pt *pt))
   PT_END(pt);
 }
 
-PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_number))
+bool selectCustomChannel = false;
+PT_THREAD(tsch_scan_custom(struct pt *pt))
 {
+    PT_BEGIN(pt);
+
+    static struct input_packet input_eb;
+    static struct etimer scan_timer;
+    /* Time when we started scanning on current_channel */
+    static clock_time_t current_channel_since;
+
+    TSCH_ASN_INIT(tsch_current_asn, 0, 0);
+
+    etimer_set(&scan_timer, CLOCK_SECOND / TSCH_ASSOCIATION_POLL_FREQUENCY);
+    current_channel_since = clock_time();
+    memcpy(tsch_hopping_sequence, TSCH_DEFAULT_HOPPING_SEQUENCE, sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE));
+    while(!tsch_is_associated && !tsch_is_coordinator) {
+        /* Hop to any channel offset */
+        static uint8_t current_channel = 0;
+        /* We are not coordinator, try to associate */
+        rtimer_clock_t t0;
+        int is_packet_pending = 0;
+        clock_time_t now_time = clock_time();
+        if(lockTimer == false) {
+            //LOG_INFO("SETTING ASN OFFSET");
+            asn_receive_offset = RTIMER_NOW();
+        }
+        /* Switch to a (new) channel for scanning */
+        if(current_channel == 0 || now_time - current_channel_since > TSCH_CHANNEL_SCAN_DURATION) {
+            /* Pick a channel at random in TSCH_JOIN_HOPPING_SEQUENCE */
+            uint8_t scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[
+                    random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
+            if(selectCustomChannel){
+                scan_channel = custom_channel;
+            }else{
+                scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[
+                        random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
+                scan_channel = 15;
+            }
+
+            NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
+            current_channel = scan_channel;
+            LOG_INFO("scanning on channel %u\n", scan_channel);
+
+            current_channel_since = now_time;
+        }
+
+        /* Turn radio on and wait for EB */
+        NETSTACK_RADIO.on();
+
+        is_packet_pending = NETSTACK_RADIO.pending_packet();
+        if(!is_packet_pending && NETSTACK_RADIO.receiving_packet()) {
+            /* If we are currently receiving a packet, wait until end of reception */
+            t0 = RTIMER_NOW();
+            LOG_INFO("DEBUG:Scan received data on channel %d\n", (int) NETSTACK_RADIO.get_value(RADIO_PARAM_CHANNEL, NULL));
+            RTIMER_BUSYWAIT_UNTIL_ABS((is_packet_pending = NETSTACK_RADIO.pending_packet()), t0, RTIMER_SECOND / 100);
+        }
+
+        if(is_packet_pending) {
+            rtimer_clock_t t1;
+            /* Read packet */
+            input_eb.len = NETSTACK_RADIO.read(input_eb.payload, TSCH_PACKET_MAX_LEN);
+
+            if(input_eb.len > 0) {
+                /* Save packet timestamp */
+                NETSTACK_RADIO.get_object(RADIO_PARAM_LAST_PACKET_TIMESTAMP, &t0, sizeof(rtimer_clock_t));
+                t1 = RTIMER_NOW();
+
+                /* Parse EB and attempt to associate */
+                LOG_INFO("scan: received packet (%u bytes) on channel %u\n", input_eb.len, current_channel);
+
+                /* Sanity-check the timestamp */
+                if(ABS(RTIMER_CLOCK_DIFF(t0, t1)) < 2ul * RTIMER_SECOND) {
+                    lockTimer = true;
+                    //asn_receive_offset = RTIMER_NOW();
+                    //tsch_associate(&input_eb, t0);
+                    if(testTimer == false && !tsch_is_coordinator){
+                        //LOG_INFO("SHIFTED asn offset: %d\n", asn_receive_offset);
+                        frame802154_t frame;
+                        struct ieee802154_ies ies;
+                        uint8_t hdrlen;
+                        tsch_packet_parse_eb(input_eb.payload, input_eb.len,
+                                             &frame, &ies, &hdrlen, 0);
+
+                        TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
+                        //custom_asn = ies.ie_asn;
+                        testTimer = true;
+                        selectCustomChannel = true;
+                        //LOG_INFO("DEBUG: Trying to start asn tracker\n");
+                        process_start(&update_custom_asn_process, NULL);
+                        //LOG_INFO("DEBUG: Trying to start custom scan\n");
+                        //PT_SPAWN(&scan_pt, &scan_custom_pt, tsch_scan_custom());
+
+                    }
+                } else {
+                    LOG_WARN("scan: dropping packet, timestamp too far from current time %u %u\n",
+                             (unsigned)t0,
+                             (unsigned)t1
+                    );
+                }
+            }
+        }
+
+        if(tsch_is_associated) {
+            /* End of association, turn the radio off */
+            NETSTACK_RADIO.off();
+        } else if(!tsch_is_coordinator) {
+            /* Go back to scanning */
+            //LOG_INFO("DEBUG: Busy waiting\n");
+            etimer_reset(&scan_timer);
+            //PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
+        }
+    }
+
+    PT_END(pt);
+}
+
+PT_THREAD(tsch_scan_custom2(struct pt *pt))
+{
+    LOG_WARN("DEBUG: STARTED CUSTOM SCAN");
   PT_BEGIN(pt);
 
   static struct input_packet input_eb;
@@ -1030,37 +1172,33 @@ PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_num
   /* Time when we started scanning on current_channel */
   //static clock_time_t current_channel_since;
 
-  TSCH_ASN_INIT(tsch_current_asn, 0, 0);
-
   etimer_set(&scan_timer, CLOCK_SECOND / TSCH_ASSOCIATION_POLL_FREQUENCY);
   //current_channel_since = clock_time();
 
-  while(custom_asn.ms1b == asn.ms1b && custom_asn.ls4b == asn.ls4b && !tsch_is_coordinator) {
+  while(!tsch_is_coordinator) {
     /* Hop to any channel offset */
-    uint8_t current_channel = channel_number;
-
+    uint8_t current_channel = tsch_calculate_channel(&custom_asn, 0);
+    current_channel = 15;
     /* We are not coordinator, try to associate */
     rtimer_clock_t t0;
     int is_packet_pending = 0;
     //clock_time_t now_time = clock_time();
 
-    bool radio_ready = false;
-    if(!radio_ready) {
-      NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, current_channel);
-      LOG_INFO("scanning on channel %u\n", current_channel);
-      //current_channel_since = now_time;
-      radio_ready = true;
-    }
+
+    NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, current_channel);
+    LOG_INFO("DEBUG: custom scanning on channel %u\n", current_channel);
+    //current_channel_since = now_time;
 
     /* Turn radio on and wait for EB */
     NETSTACK_RADIO.on();
 
     is_packet_pending = NETSTACK_RADIO.pending_packet();
     if(!is_packet_pending && NETSTACK_RADIO.receiving_packet()){
+      LOG_INFO("DEBUG:Custom scanner: Started receiving package\n");
       /* If we are currently receiving a packet, wait until end of reception */
       t0 = RTIMER_NOW();
       RTIMER_BUSYWAIT_UNTIL_ABS((is_packet_pending = NETSTACK_RADIO.pending_packet()), t0, RTIMER_SECOND / 100);
-      LOG_INFO("DEBUG:Custom scanner: Started receiving package");
+      LOG_INFO("DEBUG:Custom scanner: ended receiving package\n");
     }
 
     if(is_packet_pending) {
@@ -1090,9 +1228,13 @@ PT_THREAD(tsch_scan_custom(struct pt *pt, struct tsch_asn_t asn, int channel_num
       }
     }
 
-    NETSTACK_RADIO.off();
+    if(!tsch_is_coordinator) {
+        /* Go back to scanning */
+        etimer_reset(&scan_timer);
+        PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
+    }
   }
-
+    NETSTACK_RADIO.off();
   PT_END(pt);
 }
 
@@ -1113,7 +1255,7 @@ PROCESS_THREAD(tsch_process, ev, data)
         tsch_start_coordinator();
       } else {
         /* Start scanning, will attempt to join when receiving an EB */
-        PROCESS_PT_SPAWN(&scan_pt, tsch_scan(&scan_pt));
+        PROCESS_PT_SPAWN(&scan_pt, tsch_scan_custom(&scan_pt));
       }
     }
 
