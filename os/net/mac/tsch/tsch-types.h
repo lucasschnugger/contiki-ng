@@ -53,6 +53,19 @@
 /** \brief 802.15.4e link types. LINK_TYPE_ADVERTISING_ONLY is an extra one: for EB-only links. */
 enum link_type { LINK_TYPE_NORMAL, LINK_TYPE_ADVERTISING, LINK_TYPE_ADVERTISING_ONLY };
 
+/* Structures used for keeping track of the network topology*/
+struct tsch_node_data {
+    uint16_t channel_offset;
+    struct tsch_asn_t asn; //Absolute Slot Number for when data was updated
+    uint16_t node_id; //Link Layer Address. Used as identifier
+};
+struct tsch_topology_data {
+    uint16_t src_node_id;
+    uint16_t node_count;
+    struct tsch_asn_t asn; //System ASN
+    struct tsch_node_data node_data[15];
+};
+
 /** \brief An IEEE 802.15.4-2015 TSCH link (also called cell or slot) */
 struct tsch_link {
   /* Links are stored as a list: "next" must be the first field */

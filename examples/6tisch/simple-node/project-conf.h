@@ -58,6 +58,8 @@
  * Larger values result in less frequent active slots: reduces capacity and saves energy. */
 #define TSCH_SCHEDULE_CONF_DEFAULT_LENGTH 3
 
+#define TSCH_PACKET_CONF_EB_WITH_TOPOLOGY_DATA 1
+
 #if WITH_SECURITY
 
 /* Enable security */

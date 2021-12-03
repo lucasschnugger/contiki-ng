@@ -67,6 +67,7 @@ struct tsch_slotframe_and_links {
 
 /* The information elements that we currently support */
 struct ieee802154_ies {
+  struct tsch_topology_data ie_topology;
   /* Header IEs */
   int16_t ie_time_correction;
   uint8_t ie_is_nack;
@@ -127,6 +128,11 @@ int frame80215e_create_ie_tsch_timeslot(uint8_t *buf, int len,
 /* MLME sub-IE. TSCH channel hopping sequence. Used in EBs: hopping sequence */
 int frame80215e_create_ie_tsch_channel_hopping_sequence(uint8_t *buf, int len,
     struct ieee802154_ies *ies);
+int frame80215e_create_ie_tsch_topology_data(uint8_t *buf, int len,
+                                             struct ieee802154_ies *ies);
+void frame80215e_update_ie_tsch_topology_data(struct tsch_topology_data *current_topology,
+                                              struct ieee802154_ies *ies,
+                                              struct tsch_asn_t tsch_current_asn);
 
 /* Parse all Information Elements of a frame */
 int frame802154e_parse_information_elements(const uint8_t *buf, uint8_t buf_size,

@@ -156,6 +156,9 @@ void TSCH_CALLBACK_ROOT_NODE_UPDATED(const linkaddr_t *, uint8_t is_added);
 
 /***** External Variables *****/
 
+// Custom variables for mobility implementation
+extern struct tsch_topology_data topology;
+
 /* Are we coordinator of the TSCH network? */
 extern int tsch_is_coordinator;
 /* Are we associated to a TSCH network? */

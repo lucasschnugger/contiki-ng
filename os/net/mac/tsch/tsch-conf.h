@@ -246,6 +246,13 @@
 #define TSCH_PACKET_EB_WITH_SLOTFRAME_AND_LINK 0
 #endif
 
+/* TSCH EB: include topology data Information Element? */
+#ifdef TSCH_PACKET_CONF_EB_WITH_TOPOLOGY_DATA
+#define TSCH_PACKET_EB_WITH_TOPOLOGY_DATA TSCH_PACKET_CONF_EB_WITH_TOPOLOGY_DATA
+#else
+#define TSCH_PACKET_EB_WITH_TOPOLOGY_DATA 0
+#endif
+
 /******** Configuration: queues  *******/
 
 /* Size of the ring buffer storing dequeued outgoing packets (only an array of pointers).
