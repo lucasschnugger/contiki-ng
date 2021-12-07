@@ -73,6 +73,9 @@
 
 // Custom variables for mobility implementation
 struct tsch_topology_data topology;
+PROCESS(update_custom_asn_process, "Our function");
+struct tsch_asn_t custom_asn;
+rtimer_clock_t time_since_packet_pending = 0;
 
 /* The address of the last node we received an EB from (other than our time source).
  * Used for recovery */
@@ -890,6 +893,30 @@ PROCESS_THREAD(tsch_process, ev, data)
     tsch_reset();
   }
 
+  PROCESS_END();
+}
+
+PROCESS_THREAD(update_custom_asn_process, ev, data){
+  PROCESS_BEGIN();
+  rtimer_clock_t t0;
+  while (true){
+    int asns_to_skip = 1;
+    int us_to_shorten = 0;
+    t0 = RTIMER_NOW();
+    if (time_since_packet_pending != 0){
+      int time_since_packet_pending_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(time_since_packet_pending, t0)));
+      asns_to_skip = (int) time_since_packet_pending_us / 15000;
+      us_to_shorten = time_since_packet_pending_us % 15000;
+      time_since_packet_pending = 0;
+//      LOG_WARN("US since pending %d     ASNs skipped: %d     US shortened %d\n", time_since_packet_pending_us, asns_to_skip, us_to_shorten);
+    }
+    TSCH_ASN_INC(custom_asn, asns_to_skip);
+//    if (custom_asn.ls4b % 10 == 0){
+//      LOG_WARN("ASN Custom = %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
+//    }
+    RTIMER_BUSYWAIT_UNTIL_ABS(false,t0,US_TO_RTIMERTICKS(15000-us_to_shorten)); // wait until 15ms after increment of ASN
+  }
+  PROCESS_YIELD();
   PROCESS_END();
 }
 

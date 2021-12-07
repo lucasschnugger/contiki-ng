@@ -158,6 +158,8 @@ void TSCH_CALLBACK_ROOT_NODE_UPDATED(const linkaddr_t *, uint8_t is_added);
 
 // Custom variables for mobility implementation
 extern struct tsch_topology_data topology;
+PROCESS_NAME(update_custom_asn_process);
+extern struct tsch_asn_t custom_asn;
 
 /* Are we coordinator of the TSCH network? */
 extern int tsch_is_coordinator;
