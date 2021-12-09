@@ -74,9 +74,13 @@
 // Custom variables for mobility implementation
 struct tsch_topology_data topology;
 PROCESS(update_custom_asn_process, "Our function");
+struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology);
 struct tsch_asn_t custom_asn;
 rtimer_clock_t time_since_packet_pending = 0;
 static struct rtimer t;
+static int unique_ebs_received[15];
+static int total_ebs_received = 0;
+static long long us_to_shorten_periods = 0;
 
 /* The address of the last node we received an EB from (other than our time source).
  * Used for recovery */
@@ -413,6 +417,8 @@ eb_input(struct input_packet *current_input)
       linkaddr_copy(&last_eb_nbr_addr, (linkaddr_t *)&frame.src_addr);
       last_eb_nbr_jp = eb_ies.ie_join_priority;
     }
+
+    topology = *merge_topology_data(&topology, &eb_ies.ie_topology);
 
 #if TSCH_AUTOSELECT_TIME_SOURCE
     if(!tsch_is_coordinator) {
@@ -772,6 +778,80 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
 /* Processes and protothreads used by TSCH */
 
 
+struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology){
+  //If any topology element is null, return the other
+  if(current_topology->node_count == 0){
+    LOG_WARN("DEBUG: Current is NULL\n");
+    current_topology = input_topology;
+    return current_topology;
+  }
+  if(input_topology->node_count == 0){
+    LOG_WARN("DEBUG: Input is NULL\n");
+    return current_topology;
+  }
+
+  int i, j, nodesToAddNum = 0;
+  struct tsch_node_data nodesToAdd[15];
+
+  //For each node in new topology
+  for(i = 0; i < input_topology->node_count; i++){
+    LOG_WARN("DEBUG: The ID of this input node is: %u\n", input_topology->node_data[i].node_id);
+    bool exists = false;
+    //Compare to every node in known topology
+    for(j = 0; j < current_topology->node_count; j++){
+      if(i == 0){
+        LOG_WARN("DEBUG: The ID of this current node is: %u\n", current_topology->node_data[j].node_id);
+      }
+
+      //If src_addr are equal, node already exists.
+      if(input_topology->node_data[i].node_id == current_topology->node_data[j].node_id)
+      {
+        exists = true;
+        //If ASN of input node is larger than known node, update information
+        if(input_topology->node_data[i].asn.ms1b > current_topology->node_data[j].asn.ms1b ||
+           (
+                   input_topology->node_data[i].asn.ms1b == current_topology->node_data[j].asn.ms1b &&
+                   input_topology->node_data[i].asn.ls4b > current_topology->node_data[j].asn.ls4b
+           )
+                )
+        {
+          LOG_WARN("DEBUG: Updating newer ASN node data with old ID: %u and new ID: %u\n", (unsigned int) current_topology->node_data[j].node_id, (unsigned int) input_topology->node_data[i].node_id);
+          current_topology->node_data[j] = input_topology->node_data[i];
+        }
+      }
+    }
+    //If node does not exist in current topology, add it to nodes to add
+    if(exists == false && input_topology->node_data[i].node_id > 0){
+      LOG_WARN("DEBUG: Found new node from input topology. Adding node with ID: %u\n", (unsigned int) input_topology->node_data[i].node_id);
+      nodesToAdd[nodesToAddNum] = input_topology->node_data[i];
+      nodesToAddNum++;
+    }
+  }
+  //For each node to add, add to current topology
+  for(i = 0; i < nodesToAddNum; i++){
+    current_topology->node_data[current_topology->node_count] = nodesToAdd[i];
+    current_topology->node_count++;
+  }
+
+  return current_topology;
+}
+
+
+
+static void add_discovered_node(int newNode, int *existingNodes){
+  //If node is already discovered, return existing nodes
+  int i;
+  for(i = 0; i < total_ebs_received; i++){
+    if(existingNodes[i] == newNode){
+      LOG_WARN("\nDEBUG: add_discovered_node already seen this node with id %d. total nodes: %d\n\n",newNode, total_ebs_received);
+      return;
+    }
+  }
+  existingNodes[total_ebs_received] = newNode;
+  total_ebs_received++;
+  LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
+  return;
+}
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
   rtimer_clock_t t0;
@@ -780,16 +860,28 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
     rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
     return;
   }
-  int asns_to_skip = 1;
-  int us_to_shorten = 0;
+  long long asns_to_skip = 1;
   if (time_since_packet_pending != 0) {
-    int time_since_packet_pending_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(time_since_packet_pending, t0)));
-    asns_to_skip = (int) time_since_packet_pending_us / 15000;
-    us_to_shorten = time_since_packet_pending_us % 15000;
+    long long time_since_packet_pending_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(time_since_packet_pending, t0)));
+//    LOG_WARN("Time since (before add) = %lli\n", time_since_packet_pending_us);
+    time_since_packet_pending_us = time_since_packet_pending_us + 7500;
+//    LOG_WARN("Time since (after add) = %lli\n", time_since_packet_pending_us);
+    asns_to_skip = time_since_packet_pending_us / 15000;
+    us_to_shorten_periods = time_since_packet_pending_us % 15000;
     time_since_packet_pending = 0;
-    LOG_WARN("US since pending %d     ASNs skipped: %d     US shortened %d\n", time_since_packet_pending_us, asns_to_skip, us_to_shorten);
+//    LOG_WARN("US since pending %lli   ASNs skipped: %lli   US shortened %lli\n", time_since_packet_pending_us, asns_to_skip, us_to_shorten);
   }
   TSCH_ASN_INC(custom_asn, asns_to_skip);
+  long long us_to_shorten = 0;
+  if (us_to_shorten_periods > 0) {
+    if (us_to_shorten_periods > 10000) {
+      us_to_shorten = 10000;
+      us_to_shorten_periods = us_to_shorten_periods - 10000;
+    } else {
+      us_to_shorten = us_to_shorten_periods;
+      us_to_shorten_periods = 0;
+    }
+  }
   rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000 - us_to_shorten), 1, update_custom_asn, NULL);
   if (custom_asn.ls4b % 10 == 0) {
     LOG_WARN("ASN Custom = %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
@@ -817,6 +909,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
   static struct etimer scan_timer;
   /* Time when we started scanning on current_channel */
   static clock_time_t current_channel_since;
+  memcpy(tsch_hopping_sequence, TSCH_DEFAULT_HOPPING_SEQUENCE, sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE));
 
   TSCH_ASN_INIT(tsch_current_asn, 0, 0);
 
@@ -833,16 +926,25 @@ PT_THREAD(tsch_scan(struct pt *pt))
     clock_time_t now_time = clock_time();
 
     /* Switch to a (new) channel for scanning */
+    uint8_t scan_channel = 0;
     if(current_channel == 0 || now_time - current_channel_since > TSCH_CHANNEL_SCAN_DURATION) {
       /* Pick a channel at random in TSCH_JOIN_HOPPING_SEQUENCE */
-      uint8_t scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[
-          random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
+      scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
+    }
 
+    if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
+      struct tsch_asn_divisor_t thsl;
+      thsl.val = 4;
+      thsl.asn_ms1b_remainder = ((0xffffffff % (4)) + 1) % (4);
+      uint16_t index_of_0 = TSCH_ASN_MOD(custom_asn, thsl);
+      uint16_t index_of_offset = (index_of_0 + 0) % 4;
+      scan_channel = tsch_hopping_sequence[index_of_offset];
+    }
+
+    if(current_channel != scan_channel){
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
       current_channel = scan_channel;
-      LOG_INFO("scanning on channel %u\n", scan_channel);
-
-      current_channel_since = now_time;
+      LOG_INFO("scanning on channel %u   ASN %02x.%08lx\n", scan_channel, custom_asn.ms1b, custom_asn.ls4b);
     }
 
     /* Turn radio on and wait for EB */
@@ -870,12 +972,27 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
         /* Sanity-check the timestamp */
         if(ABS(RTIMER_CLOCK_DIFF(t0, t1)) < 2ul * RTIMER_SECOND) {
-          tsch_associate(&input_eb, t0);
+          // parse eb
+          frame802154_t frame;
+          struct ieee802154_ies ies;
+          uint8_t hdrlen;
+          if(tsch_packet_parse_eb(input_eb.payload, input_eb.len, &frame, &ies, &hdrlen, 0) != 0) {
+            TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
+            time_since_packet_pending = t0;
+            add_discovered_node(ies.ie_topology.src_node_id, &unique_ebs_received[0]);
+            if(total_ebs_received == ies.ie_topology.node_count && false){
+              tsch_associate(&input_eb, t0);
+            }
+//            process_start(&update_custom_asn_process, NULL);
+//            rtimer_set(&t, RTIMER_NOW(), 1, update_custom_asn, NULL);
+          } else {
+            LOG_DBG("! failed to parse packet as EB while scanning (len %u)\n", input_eb.len);
+          }
         } else {
-          LOG_WARN("scan: dropping packet, timestamp too far from current time %u %u\n",
-            (unsigned)t0,
-            (unsigned)t1
-        );
+            LOG_WARN("scan: dropping packet, timestamp too far from current time %u %u\n",
+              (unsigned)t0,
+              (unsigned)t1
+          );
         }
       }
     }
