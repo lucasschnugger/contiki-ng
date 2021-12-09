@@ -856,6 +856,7 @@ static void add_discovered_node(int newNode, int *existingNodes){
 static void update_custom_asn(struct rtimer *t, void *ptr){
   rtimer_clock_t t0;
   t0 = RTIMER_NOW();
+  //If ASN not initialized yet, keep checking if initialized
   if (custom_asn.ms1b == 0 && custom_asn.ls4b == 0){
     rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
     return;
@@ -980,7 +981,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
             TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
             time_since_packet_pending = t0;
             add_discovered_node(ies.ie_topology.src_node_id, &unique_ebs_received[0]);
-            if(total_ebs_received == ies.ie_topology.node_count && false){
+            if(total_ebs_received == ies.ie_topology.node_count){
               tsch_associate(&input_eb, t0);
             }
 //            process_start(&update_custom_asn_process, NULL);
