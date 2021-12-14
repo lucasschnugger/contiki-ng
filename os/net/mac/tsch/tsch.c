@@ -72,14 +72,18 @@
 #define LOG_LEVEL LOG_LEVEL_MAC
 
 // Custom variables for mobility implementation
+#define max_eb_storage 1
+static bool new_asn_value_ready = true;
 struct tsch_topology_data topology;
 PROCESS(update_custom_asn_process, "Our function");
 struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology);
 struct tsch_asn_t custom_asn;
 rtimer_clock_t time_since_packet_pending = 0;
 static struct rtimer t;
-static int unique_ebs_received[15];
+rtimer_clock_t asn_last_updated = 0;
+static struct input_packet latest_eb;
 static int total_ebs_received = 0;
+static int eb_join_evaluation_max = 5;
 static long long us_to_shorten_periods = 0;
 
 /* The address of the last node we received an EB from (other than our time source).
@@ -598,7 +602,7 @@ tsch_disassociate(void)
 /*---------------------------------------------------------------------------*/
 /* Attempt to associate to a network form an incoming EB */
 static int
-tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
+tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bool use_custom_asn)
 {
   frame802154_t frame;
   struct ieee802154_ies ies;
@@ -612,7 +616,14 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp)
     return 0;
   }
 
-  tsch_current_asn = ies.ie_asn;
+  if(use_custom_asn){
+    timestamp = timestamp + US_TO_RTIMERTICKS(1000);
+    tsch_current_asn = custom_asn;
+    TSCH_ASN_DEC(tsch_current_asn, 1);
+  }else{
+    tsch_current_asn = ies.ie_asn;
+  }
+
   tsch_join_priority = ies.ie_join_priority + 1;
 
 #if TSCH_JOIN_SECURED_ONLY
@@ -791,7 +802,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
   }
 
   int i, j, nodesToAddNum = 0;
-  struct tsch_node_data nodesToAdd[15];
+  struct tsch_node_data nodesToAdd[max_eb_storage];
 
   //For each node in new topology
   for(i = 0; i < input_topology->node_count; i++){
@@ -838,24 +849,32 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 
 
 
-static void add_discovered_node(int newNode, int *existingNodes){
+/*static void add_discovered_node(int newNode, struct input_packet eb){
   //If node is already discovered, return existing nodes
   int i;
   for(i = 0; i < total_ebs_received; i++){
-    if(existingNodes[i] == newNode){
+    if(unique_ebs_received_ids[i] == newNode){
+      unique_ebs_received[i] = eb;
       LOG_WARN("\nDEBUG: add_discovered_node already seen this node with id %d. total nodes: %d\n\n",newNode, total_ebs_received);
       return;
     }
   }
-  existingNodes[total_ebs_received] = newNode;
-  total_ebs_received++;
-  LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
+  if(total_ebs_received < max_eb_storage){
+    unique_ebs_received_ids[total_ebs_received] = newNode;
+    unique_ebs_received[total_ebs_received] = eb;
+    total_ebs_received++;
+    LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
+  }else{
+    LOG_WARN("DEBUG: Number of unique EBs received > max EB storage. Dropping EB.\n");
+  }
+
   return;
-}
+}*/
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
   rtimer_clock_t t0;
   t0 = RTIMER_NOW();
+  asn_last_updated = RTIMER_NOW();
   //If ASN not initialized yet, keep checking if initialized
   if (custom_asn.ms1b == 0 && custom_asn.ls4b == 0){
     rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
@@ -865,7 +884,7 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
   if (time_since_packet_pending != 0) {
     long long time_since_packet_pending_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(time_since_packet_pending, t0)));
 //    LOG_WARN("Time since (before add) = %lli\n", time_since_packet_pending_us);
-    time_since_packet_pending_us = time_since_packet_pending_us + 7500;
+    time_since_packet_pending_us = time_since_packet_pending_us + 1000;
 //    LOG_WARN("Time since (after add) = %lli\n", time_since_packet_pending_us);
     asns_to_skip = time_since_packet_pending_us / 15000;
     us_to_shorten_periods = time_since_packet_pending_us % 15000;
@@ -886,6 +905,7 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
   rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000 - us_to_shorten), 1, update_custom_asn, NULL);
   if (custom_asn.ls4b % 10 == 0) {
     LOG_WARN("ASN Custom = %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
+//    LOG_WARN("DEBUG: R-timer-ticks in a time period: %li\n", US_TO_RTIMERTICKS(50000));
   }
 //    RTIMER_BUSYWAIT_UNTIL_ABS(false,t0,US_TO_RTIMERTICKS(15000-us_to_shorten)); // wait until 15ms after increment of ASN
 }
@@ -895,6 +915,10 @@ PROCESS_THREAD(update_custom_asn_process, ev, data){
   rtimer_set(&t, RTIMER_NOW(), 1, update_custom_asn, NULL);
   PROCESS_YIELD();
   PROCESS_END();
+}
+
+bool check_asn_update(){
+  return new_asn_value_ready;
 }
 
 /*---------------------------------------------------------------------------*/
@@ -908,6 +932,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
   static struct input_packet input_eb;
   static struct etimer scan_timer;
+  static clock_time_t scanner_timeout = 0;
   /* Time when we started scanning on current_channel */
   static clock_time_t current_channel_since;
   memcpy(tsch_hopping_sequence, TSCH_DEFAULT_HOPPING_SEQUENCE, sizeof(TSCH_DEFAULT_HOPPING_SEQUENCE));
@@ -917,7 +942,15 @@ PT_THREAD(tsch_scan(struct pt *pt))
   etimer_set(&scan_timer, CLOCK_SECOND / TSCH_ASSOCIATION_POLL_FREQUENCY);
   current_channel_since = clock_time();
 
+
   while(!tsch_is_associated && !tsch_is_coordinator) {
+
+    //If timeout since first discovered EB, associate now
+    if(total_ebs_received > 0 && clock_time() - scanner_timeout > TSCH_CONF_SCAN_EB_TIMEOUT){
+      LOG_WARN("DEBUG: Associating by timeout\n");
+      tsch_associate(&latest_eb, asn_last_updated /*RTIMER_NOW()*/, true);
+    }
+
     /* Hop to any channel offset */
     static uint8_t current_channel = 0;
 
@@ -980,9 +1013,14 @@ PT_THREAD(tsch_scan(struct pt *pt))
           if(tsch_packet_parse_eb(input_eb.payload, input_eb.len, &frame, &ies, &hdrlen, 0) != 0) {
             TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
             time_since_packet_pending = t0;
-            add_discovered_node(ies.ie_topology.src_node_id, &unique_ebs_received[0]);
-            if(total_ebs_received == ies.ie_topology.node_count){
-              tsch_associate(&input_eb, t0);
+            //add_discovered_node(ies.ie_topology.src_node_id, input_eb);
+            latest_eb = input_eb;
+            total_ebs_received = 1;
+            //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
+            if((total_ebs_received == ies.ie_topology.node_count || total_ebs_received >= eb_join_evaluation_max)){
+              tsch_associate(&input_eb, t0, false);
+            }else if(scanner_timeout == 0){
+              scanner_timeout = clock_time();
             }
 //            process_start(&update_custom_asn_process, NULL);
 //            rtimer_set(&t, RTIMER_NOW(), 1, update_custom_asn, NULL);
@@ -1003,8 +1041,14 @@ PT_THREAD(tsch_scan(struct pt *pt))
       NETSTACK_RADIO.off();
     } else if(!tsch_is_coordinator) {
       /* Go back to scanning */
-      etimer_reset(&scan_timer);
-      PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
+      if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
+        PT_WAIT_UNTIL(pt, check_asn_update());
+        new_asn_value_ready = true;
+      }else{
+        etimer_reset(&scan_timer);
+        PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
+      }
+
     }
   }
 
