@@ -872,6 +872,9 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 }*/
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
+  if(tsch_is_associated){
+      return;
+  }
   rtimer_clock_t t0;
   t0 = RTIMER_NOW();
   asn_last_updated = RTIMER_NOW();

@@ -1065,6 +1065,11 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           tsch_current_channel_offset = tsch_get_channel_offset(current_link, current_packet);
           tsch_current_channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
         }
+
+          TSCH_LOG_ADD(tsch_log_message,
+                       snprintf(log->message, sizeof(log->message),
+                                "DEBUG: setting channel: %d.", tsch_current_channel));
+
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, tsch_current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */
         tsch_radio_on(TSCH_RADIO_CMD_ON_START_OF_TIMESLOT);
