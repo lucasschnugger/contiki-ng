@@ -620,6 +620,12 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
     timestamp = timestamp + US_TO_RTIMERTICKS(1000);
     tsch_current_asn = custom_asn;
     TSCH_ASN_DEC(tsch_current_asn, 1);
+    /*if(ies.ie_topology.node_count == 1){
+
+    }else{
+      TSCH_ASN_DEC(tsch_current_asn, 2);
+    }*/
+
   }else{
     tsch_current_asn = ies.ie_asn;
   }
@@ -664,6 +670,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
 
   /* TSCH timeslot timing */
   for(i = 0; i < tsch_ts_elements_count; i++) {
+
     if(ies.ie_tsch_timeslot_id == 0) {
       tsch_timing_us[i] = tsch_default_timing_us[i];
     } else {
@@ -872,6 +879,9 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 }*/
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
+  /*if(tsch_is_associated){
+    return;
+  }*/
   rtimer_clock_t t0;
   t0 = RTIMER_NOW();
   asn_last_updated = RTIMER_NOW();
@@ -947,12 +957,18 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
     //If timeout since first discovered EB, associate now
     if(total_ebs_received > 0 && clock_time() - scanner_timeout > TSCH_CONF_SCAN_EB_TIMEOUT){
-      LOG_WARN("DEBUG: Associating by timeout\n");
-      tsch_associate(&latest_eb, asn_last_updated /*RTIMER_NOW()*/, true);
+      if(custom_asn.ls4b % 3 == 0){
+        LOG_WARN("DEBUG: Associating by timeout\n");
+        tsch_associate(&latest_eb, asn_last_updated /*RTIMER_NOW()*/, true);
+      }else{
+          LOG_WARN("DEBUG: skipping associate timing, ASN %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
+      }
+
     }
 
     /* Hop to any channel offset */
     static uint8_t current_channel = 0;
+    static uint8_t scan_channel = 0;
 
     /* We are not coordinator, try to associate */
     rtimer_clock_t t0;
@@ -960,7 +976,6 @@ PT_THREAD(tsch_scan(struct pt *pt))
     clock_time_t now_time = clock_time();
 
     /* Switch to a (new) channel for scanning */
-    uint8_t scan_channel = 0;
     if(current_channel == 0 || now_time - current_channel_since > TSCH_CHANNEL_SCAN_DURATION) {
       /* Pick a channel at random in TSCH_JOIN_HOPPING_SEQUENCE */
       scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
@@ -1017,7 +1032,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
             latest_eb = input_eb;
             total_ebs_received = 1;
             //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
-            if((total_ebs_received == ies.ie_topology.node_count || total_ebs_received >= eb_join_evaluation_max)){
+            if((total_ebs_received == ies.ie_topology.node_count || total_ebs_received >= eb_join_evaluation_max) && false){
               tsch_associate(&input_eb, t0, false);
             }else if(scanner_timeout == 0){
               scanner_timeout = clock_time();
@@ -1075,6 +1090,7 @@ PROCESS_THREAD(tsch_process, ev, data)
         PROCESS_PT_SPAWN(&scan_pt, tsch_scan(&scan_pt));
       }
     }
+    LOG_WARN("DEBUG: Scan finished - Associated\n");
 
     /* We are part of a TSCH network, start slot operation */
     tsch_slot_operation_start();

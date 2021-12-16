@@ -309,11 +309,15 @@ tsch_schedule_slot_operation(struct rtimer *tm, rtimer_clock_t ref_time, rtimer_
   if(missed) {
     TSCH_LOG_ADD(tsch_log_message,
                 snprintf(log->message, sizeof(log->message),
-                    "!dl-miss %s %d %d",
-                        str, (int)(now-ref_time), (int)offset);
-    );
-  } else {
-    r = rtimer_set(tm, ref_time + offset, 1, (void (*)(struct rtimer *, void *))tsch_slot_operation, NULL);
+                         "!dl-miss %s %d %d",
+                         str, (int)(now-ref_time), (int)offset));
+    TSCH_LOG_ADD(tsch_log_message,
+                 snprintf(log->message, sizeof(log->message),
+                          "CurASN %02x.%08lx CusASN %02x.%08lx",
+                          tsch_current_asn.ms1b, tsch_current_asn.ls4b, custom_asn.ms1b, custom_asn.ls4b));
+    TSCH_ASN_DEC(tsch_current_asn, 1);
+} else {
+  r = rtimer_set(tm, ref_time + offset, 1, (void (*)(struct rtimer *, void *))tsch_slot_operation, NULL);
     if(r == RTIMER_OK) {
       return 1;
     }
@@ -1012,7 +1016,6 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
 
   /* Loop over all active slots */
   while(tsch_is_associated) {
-
     if(current_link == NULL || tsch_lock_requested) { /* Skip slot operation if there is no link
                                                           or if there is a pending request for getting the lock */
       /* Issue a log whenever skipping a slot */
@@ -1064,6 +1067,11 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           /* Hop channel */
           tsch_current_channel_offset = tsch_get_channel_offset(current_link, current_packet);
           tsch_current_channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
+          if (tsch_current_asn.ls4b % 10 == 0) {
+            TSCH_LOG_ADD(tsch_log_message,
+                         snprintf(log->message, sizeof(log->message), "!Channel of outgoing packet: %d",
+                                  tsch_current_channel));
+          }
         }
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, tsch_current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */
@@ -1143,6 +1151,11 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
 
         /* Update ASN */
         TSCH_ASN_INC(tsch_current_asn, timeslot_diff);
+        TSCH_LOG_ADD(tsch_log_message,
+                     snprintf(log->message, sizeof(log->message),
+                              "ASN SYNC: tso: inc ASN by %d to: %08lx",
+                              timeslot_diff, tsch_current_asn.ls4b);
+        );
         /* Time to next wake up */
         time_to_next_active_slot = timeslot_diff * tsch_timing[tsch_ts_timeslot_length] + drift_correction;
         time_to_next_active_slot += tsch_timesync_adaptive_compensate(time_to_next_active_slot);
@@ -1169,6 +1182,10 @@ tsch_slot_operation_start(void)
   static struct rtimer slot_operation_timer;
   rtimer_clock_t time_to_next_active_slot;
   rtimer_clock_t prev_slot_start;
+  TSCH_LOG_ADD(tsch_log_message,
+               snprintf(log->message, sizeof(log->message),
+                        "ASN SYNC: tsos: before loop");
+  );
   TSCH_DEBUG_INIT();
   do {
     uint16_t timeslot_diff;
@@ -1181,6 +1198,11 @@ tsch_slot_operation_start(void)
     }
     /* Update ASN */
     TSCH_ASN_INC(tsch_current_asn, timeslot_diff);
+    TSCH_LOG_ADD(tsch_log_message,
+                 snprintf(log->message, sizeof(log->message),
+                          "ASN SYNC: tsos: inc ASN to: %08lx",
+                          tsch_current_asn.ls4b);
+    );
     /* Time to next wake up */
     time_to_next_active_slot = timeslot_diff * tsch_timing[tsch_ts_timeslot_length];
     /* Compensate for the base drift */
@@ -1205,6 +1227,10 @@ tsch_slot_operation_sync(rtimer_clock_t next_slot_start,
   tsch_last_sync_time = clock_time();
   critical_exit(status);
   current_link = NULL;
+}
+
+void set_custom_asn(struct tsch_asn_t *cst_asn){
+  custom_asn = *cst_asn;
 }
 /*---------------------------------------------------------------------------*/
 /** @} */

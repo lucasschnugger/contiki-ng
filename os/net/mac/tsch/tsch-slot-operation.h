@@ -94,5 +94,7 @@ void tsch_slot_operation_sync(rtimer_clock_t next_slot_start,
  */
 void tsch_slot_operation_start(void);
 
+void set_custom_asn(struct tsch_asn_t *asn);
+
 #endif /* __TSCH_SLOT_OPERATION_H__ */
 /** @} */
