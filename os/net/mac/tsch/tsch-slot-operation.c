@@ -1066,13 +1066,14 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
           tsch_current_channel = tsch_calculate_channel(&tsch_current_asn, tsch_current_channel_offset);
         }
 
-          TSCH_LOG_ADD(tsch_log_message,
-                       snprintf(log->message, sizeof(log->message),
-                                "DEBUG: setting channel: %d.", tsch_current_channel));
-
         NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, tsch_current_channel);
         /* Turn the radio on already here if configured so; necessary for radios with slow startup */
         tsch_radio_on(TSCH_RADIO_CMD_ON_START_OF_TIMESLOT);
+        if (tsch_current_asn.ls4b % 10 == 0) {
+          TSCH_LOG_ADD(tsch_log_message,
+                       snprintf(log->message, sizeof(log->message), "!Channel of outgoing packet: %d",
+                                tsch_current_channel));
+        }
         /* Decide whether it is a TX/RX/IDLE or OFF slot */
         /* Actual slot operation */
         if(current_packet != NULL) {
