@@ -85,6 +85,7 @@ static struct input_packet latest_eb;
 static int total_ebs_received = 0;
 static int eb_join_evaluation_max = 5;
 static long long us_to_shorten_periods = 0;
+static bool stop_asn_custom_update = false;
 
 /* The address of the last node we received an EB from (other than our time source).
  * Used for recovery */
@@ -604,6 +605,7 @@ tsch_disassociate(void)
 static int
 tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bool use_custom_asn)
 {
+  stop_asn_custom_update = true;
   frame802154_t frame;
   struct ieee802154_ies ies;
   uint8_t hdrlen;
@@ -619,7 +621,6 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
   if(use_custom_asn){
     timestamp = timestamp + US_TO_RTIMERTICKS(1000);
     tsch_current_asn = custom_asn;
-    TSCH_ASN_DEC(tsch_current_asn, 1);
   }else{
     tsch_current_asn = ies.ie_asn;
   }
@@ -744,6 +745,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
       frame802154_set_pan_id(frame.src_pid);
 
       /* Synchronize on EB */
+      LOG_WARN("DEBUG-SYNC: Timestamp=%u  TxOffset=%u  ASN=%02x.%05lx\n", timestamp, tsch_timing[tsch_ts_tx_offset], tsch_current_asn.ms1b, tsch_current_asn.ls4b);
       tsch_slot_operation_sync(timestamp - tsch_timing[tsch_ts_tx_offset], &tsch_current_asn);
 
       /* Update global flags */
@@ -872,7 +874,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 }*/
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
-  if(tsch_is_associated){
+  if(tsch_is_associated || stop_asn_custom_update){
       return;
   }
   rtimer_clock_t t0;
