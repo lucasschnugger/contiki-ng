@@ -274,7 +274,7 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
   /* Add Topology Data IE */
 #if TSCH_PACKET_EB_WITH_TOPOLOGY_DATA
   {
-    frame80215e_update_ie_tsch_topology_data(&topology, &ies, tsch_current_asn);
+    frame80215e_update_ie_tsch_topology_data(&topology, &ies, tsch_current_asn, parent_node_id);
     LOG_WARN("DEBUG: Starting Writing Topology -> IE\n");
     ies.ie_topology.src_node_id = node_id;
     ies.ie_topology.node_count = topology.node_count;
@@ -285,15 +285,25 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
       if(node_id == topology.node_data[n].node_id)
       {
         found_self = true;
+        topology.node_data[n].left_network = 0;
+        topology.node_data[n].parent = parent_node_id;
         topology.node_data[n].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
         topology.node_data[n].asn.ms1b = tsch_current_asn.ms1b;
+      }else if(topology.node_data[n].left_network == 0 && topology.node_data[n].parent == node_id
+      && (TSCH_ASN_DIFF(tsch_current_asn, topology.node_data[n].asn) > (100 * TSCH_CLOCK_TO_SLOTS(TSCH_DESYNC_THRESHOLD / 100, tsch_timing[tsch_ts_timeslot_length])))){ //If i am parent and have not heard from node in a along time
+          topology.node_data[n].left_network = 1;
+          TSCH_ASN_INC(topology.node_data[n].asn, 1);
+          LOG_WARN("DEBUG: Marking node %u as left network. ASNs since update: %u\n", topology.node_data[n].node_id, (unsigned)TSCH_ASN_DIFF(tsch_current_asn, topology.node_data[n].asn));
       }
       ies.ie_topology.node_data[n].node_id = topology.node_data[n].node_id;
+      ies.ie_topology.node_data[n].parent = topology.node_data[n].parent;
+      ies.ie_topology.node_data[n].left_network = topology.node_data[n].left_network;
       ies.ie_topology.node_data[n].channel_offset = topology.node_data[n].channel_offset;
       ies.ie_topology.node_data[n].asn.ls4b = topology.node_data[n].asn.ls4b;
       ies.ie_topology.node_data[n].asn.ms1b = topology.node_data[n].asn.ms1b;
-      LOG_WARN("WROTE to EB Node with: ID=%u, Offset=%u, ASN=%02x.%05lx\n",
+      LOG_WARN("WROTE to EB Node with: ID=%u, Parent=%u, Offset=%u, ASN=%02x.%05lx\n",
                ies.ie_topology.node_data[n].node_id,
+               ies.ie_topology.node_data[n].parent,
                ies.ie_topology.node_data[n].channel_offset,
                ies.ie_topology.node_data[n].asn.ms1b,
                ies.ie_topology.node_data[n].asn.ls4b);
@@ -301,17 +311,22 @@ tsch_packet_create_eb(uint8_t *hdr_len, uint8_t *tsch_sync_ie_offset)
 
     if (found_self == false){
       topology.node_data[topology.node_count].node_id = node_id;
+      topology.node_data[topology.node_count].parent = parent_node_id;
+      topology.node_data[topology.node_count].left_network = false;
       topology.node_data[topology.node_count].channel_offset = 0;
       topology.node_data[topology.node_count].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
       topology.node_data[topology.node_count].asn.ms1b = tsch_current_asn.ms1b;
       topology.node_count++;
       ies.ie_topology.node_data[ies.ie_topology.node_count].node_id = node_id;
+      ies.ie_topology.node_data[ies.ie_topology.node_count].parent = parent_node_id;
+      ies.ie_topology.node_data[ies.ie_topology.node_count].left_network = false;
       ies.ie_topology.node_data[ies.ie_topology.node_count].channel_offset = 0;
       ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ls4b = (uint32_t) tsch_current_asn.ls4b;
       ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ms1b = tsch_current_asn.ms1b;
       ies.ie_topology.node_count++;
-      LOG_WARN("WROTE SELF to EB Node with: ID=%u, Offset=%u, ASN=%02x.%05lx\n",
+      LOG_WARN("WROTE SELF to EB Node with: ID=%u, Parent=%u, Offset=%u, ASN=%02x.%05lx\n",
                ies.ie_topology.node_data[ies.ie_topology.node_count].node_id,
+               ies.ie_topology.node_data[ies.ie_topology.node_count].parent,
                ies.ie_topology.node_data[ies.ie_topology.node_count].channel_offset,
                ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ms1b,
                ies.ie_topology.node_data[ies.ie_topology.node_count].asn.ls4b);

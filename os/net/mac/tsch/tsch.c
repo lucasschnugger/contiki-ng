@@ -75,8 +75,10 @@
 #define max_eb_storage 1
 static bool new_asn_value_ready = true;
 struct tsch_topology_data topology;
+uint16_t parent_node_id;
 PROCESS(update_custom_asn_process, "Our function");
 struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology);
+static int count_active_nodes(struct ieee802154_ies *ies);
 struct tsch_asn_t custom_asn;
 rtimer_clock_t time_since_packet_pending = 0;
 static struct rtimer t;
@@ -595,6 +597,18 @@ void
 tsch_disassociate(void)
 {
   if(tsch_is_associated == 1) {
+    //Reset custom variables
+    memset(&custom_asn, 0, sizeof(struct tsch_asn_t));
+    total_ebs_received = 0;
+    parent_node_id = 0;
+    asn_last_updated = 0;
+    time_since_packet_pending = 0;
+    us_to_shorten_periods = 0;
+    new_asn_value_ready = true;
+    memset(&topology, 0, sizeof(struct tsch_topology_data));
+    stop_asn_custom_update = false;
+    memset(&latest_eb, 0, sizeof(struct input_packet));
+
     tsch_is_associated = 0;
     tsch_adaptive_timesync_reset();
     process_poll(&tsch_process);
@@ -625,6 +639,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
     tsch_current_asn = ies.ie_asn;
   }
 
+  parent_node_id = ies.ie_topology.src_node_id;
   tsch_join_priority = ies.ie_join_priority + 1;
 
 #if TSCH_JOIN_SECURED_ONLY
@@ -804,7 +819,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
   }
 
   int i, j, nodesToAddNum = 0;
-  struct tsch_node_data nodesToAdd[max_eb_storage];
+  struct tsch_node_data nodesToAdd[10];
 
   //For each node in new topology
   for(i = 0; i < input_topology->node_count; i++){
@@ -833,6 +848,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
         }
       }
     }
+
     //If node does not exist in current topology, add it to nodes to add
     if(exists == false && input_topology->node_data[i].node_id > 0){
       LOG_WARN("DEBUG: Found new node from input topology. Adding node with ID: %u\n", (unsigned int) input_topology->node_data[i].node_id);
@@ -1022,7 +1038,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
             latest_eb = input_eb;
             total_ebs_received = 1;
             //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
-            if((total_ebs_received == ies.ie_topology.node_count || total_ebs_received >= eb_join_evaluation_max)){
+            if((total_ebs_received == count_active_nodes(&ies) || total_ebs_received >= eb_join_evaluation_max)){
               tsch_associate(&input_eb, t0, false);
             }else if(scanner_timeout == 0){
               scanner_timeout = clock_time();
@@ -1058,6 +1074,17 @@ PT_THREAD(tsch_scan(struct pt *pt))
   }
 
   PT_END(pt);
+}
+
+static int count_active_nodes(struct ieee802154_ies *ies){
+    int result = 0;
+    int i;
+    for(i = 0; i < ies->ie_topology.node_count; i++){
+        if(ies->ie_topology.node_data[i].left_network == 0){
+            result += 1;
+        }
+    }
+    return result;
 }
 
 /*---------------------------------------------------------------------------*/

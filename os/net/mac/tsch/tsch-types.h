@@ -56,6 +56,8 @@ enum link_type { LINK_TYPE_NORMAL, LINK_TYPE_ADVERTISING, LINK_TYPE_ADVERTISING_
 /* Structures used for keeping track of the network topology*/
 struct tsch_node_data {
     uint16_t channel_offset;
+    uint16_t parent; //Node ID of parent
+    bool left_network; //If node has left network
     struct tsch_asn_t asn; //Absolute Slot Number for when data was updated
     uint16_t node_id; //Link Layer Address. Used as identifier
 };
@@ -63,7 +65,7 @@ struct tsch_topology_data {
     uint16_t src_node_id;
     uint16_t node_count;
     struct tsch_asn_t asn; //System ASN
-    struct tsch_node_data node_data[15];
+    struct tsch_node_data node_data[10];
 };
 
 /** \brief An IEEE 802.15.4-2015 TSCH link (also called cell or slot) */
