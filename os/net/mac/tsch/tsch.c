@@ -991,14 +991,14 @@ PT_THREAD(tsch_scan(struct pt *pt))
       scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
     }
 
-    if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
-      struct tsch_asn_divisor_t thsl;
-      thsl.val = 4;
-      thsl.asn_ms1b_remainder = ((0xffffffff % (4)) + 1) % (4);
-      uint16_t index_of_0 = TSCH_ASN_MOD(custom_asn, thsl);
-      uint16_t index_of_offset = (index_of_0 + 0) % 4;
-      scan_channel = tsch_hopping_sequence[index_of_offset];
-    }
+//    if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
+//      struct tsch_asn_divisor_t thsl;
+//      thsl.val = 4;
+//      thsl.asn_ms1b_remainder = ((0xffffffff % (4)) + 1) % (4);
+//      uint16_t index_of_0 = TSCH_ASN_MOD(custom_asn, thsl);
+//      uint16_t index_of_offset = (index_of_0 + 0) % 4;
+//      scan_channel = tsch_hopping_sequence[index_of_offset];
+//    }
 
     if(current_channel != scan_channel){
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
@@ -1042,7 +1042,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
             latest_eb = input_eb;
             //total_ebs_received = 1;
             //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
-            if((total_ebs_received == count_active_nodes(&ies) || total_ebs_received >= eb_join_evaluation_max)){
+            if(total_ebs_received >= eb_join_evaluation_max)){
               tsch_associate(&input_eb, t0, false);
             }else if(scanner_timeout == 0){
               scanner_timeout = clock_time();
@@ -1066,13 +1066,13 @@ PT_THREAD(tsch_scan(struct pt *pt))
       NETSTACK_RADIO.off();
     } else if(!tsch_is_coordinator) {
       /* Go back to scanning */
-      if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
-        PT_WAIT_UNTIL(pt, check_asn_update());
-        new_asn_value_ready = true;
-      }else{
+//      if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
+//        PT_WAIT_UNTIL(pt, check_asn_update());
+//        new_asn_value_ready = true;
+//      }else{
         etimer_reset(&scan_timer);
         PT_WAIT_UNTIL(pt, etimer_expired(&scan_timer));
-      }
+      //}
 
     }
   }
