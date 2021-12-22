@@ -57,6 +57,7 @@
 #include "net/mac/mac-sequence.h"
 #include "lib/random.h"
 #include "net/routing/routing.h"
+#include "sys/node-id.h"
 
 #if TSCH_WITH_SIXTOP
 #include "net/mac/tsch/sixtop/sixtop.h"
@@ -613,6 +614,7 @@ tsch_disassociate(void)
     tsch_is_associated = 0;
     tsch_adaptive_timesync_reset();
     process_poll(&tsch_process);
+    LOG_WARN("SIM: Mote=%u disassociated\n", node_id);
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -797,6 +799,8 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
              ies.ie_tsch_slotframe_and_link.num_links);
       LOG_INFO_LLADDR((const linkaddr_t *)&frame.src_addr);
       LOG_INFO_("\n");
+      LOG_WARN("SIM: Mote=%u associated\n", node_id);
+      LOG_WARN("SIM: Mote=%u discovered motes %u\n", node_id, total_ebs_received);
 
       return 1;
     }
@@ -881,6 +885,7 @@ static void add_discovered_node(int newNode){
     unique_ebs_received_ids[total_ebs_received] = newNode;
     total_ebs_received++;
     LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
+    LOG_WARN("SIM: Mote=%u discovered EB #%d from mote %u\n", node_id, total_ebs_received, newNode);
   }else{
     LOG_WARN("DEBUG: Number of unique EBs received > max EB storage. Dropping EB.\n");
   }
