@@ -72,7 +72,8 @@
 #define LOG_LEVEL LOG_LEVEL_MAC
 
 // Custom variables for mobility implementation
-#define max_eb_storage 1
+#define max_eb_storage 10
+static int unique_ebs_received_ids[max_eb_storage];
 static bool new_asn_value_ready = true;
 struct tsch_topology_data topology;
 uint16_t parent_node_id;
@@ -867,19 +868,17 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 
 
 
-/*static void add_discovered_node(int newNode, struct input_packet eb){
+static void add_discovered_node(int newNode){
   //If node is already discovered, return existing nodes
   int i;
   for(i = 0; i < total_ebs_received; i++){
     if(unique_ebs_received_ids[i] == newNode){
-      unique_ebs_received[i] = eb;
       LOG_WARN("\nDEBUG: add_discovered_node already seen this node with id %d. total nodes: %d\n\n",newNode, total_ebs_received);
       return;
     }
   }
   if(total_ebs_received < max_eb_storage){
     unique_ebs_received_ids[total_ebs_received] = newNode;
-    unique_ebs_received[total_ebs_received] = eb;
     total_ebs_received++;
     LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
   }else{
@@ -887,7 +886,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
   }
 
   return;
-}*/
+}
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
   if(tsch_is_associated || stop_asn_custom_update){
@@ -1034,9 +1033,9 @@ PT_THREAD(tsch_scan(struct pt *pt))
           if(tsch_packet_parse_eb(input_eb.payload, input_eb.len, &frame, &ies, &hdrlen, 0) != 0) {
             TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
             time_since_packet_pending = t0;
-            //add_discovered_node(ies.ie_topology.src_node_id, input_eb);
+            add_discovered_node(ies.ie_topology.src_node_id);
             latest_eb = input_eb;
-            total_ebs_received = 1;
+            //total_ebs_received = 1;
             //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
             if((total_ebs_received == count_active_nodes(&ies) || total_ebs_received >= eb_join_evaluation_max)){
               tsch_associate(&input_eb, t0, false);
@@ -1084,6 +1083,7 @@ static int count_active_nodes(struct ieee802154_ies *ies){
             result += 1;
         }
     }
+    LOG_WARN("Active nodes in EB: %d", result);
     return result;
 }
 
