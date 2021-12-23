@@ -29,6 +29,49 @@ def update_firmware_in_test(dir, test, firmware):
     root.write(file)
 
 
+def add_scriptrunner_in_test(dir, test):
+    file = f"{dir}{test}"
+    scriptrunner = ""
+    if test.startswith("join-"):
+        scriptrunner = open(f"{scripts_dir}join.js").read()
+    elif test.startswith("create-"):
+        scriptrunner = open(f"{scripts_dir}create.js").read()
+    from xml.etree import cElementTree as ET
+    root = ET.parse(file)
+    for element in root.iter():
+        if element.tag == "simconf":
+            plugin = ET.Element("plugin")
+            plugin.text = "org.contikios.cooja.plugins.ScriptRunner"
+            conf = ET.Element("plugin_config")
+            script = ET.Element("script")
+            script.text = scriptrunner
+            active = ET.Element("active")
+            active.text = "true"
+            conf.append(script)
+            conf.append(active)
+            plugin.append(conf)
+            element.append(plugin)
+    root.write(file)
+
+
+def add_mobility_in_test(dir, test):
+    file = f"{dir}{test}"
+    from xml.etree import cElementTree as ET
+    root = ET.parse(file)
+    for element in root.iter():
+        if element.tag == "simconf":
+            plugin = ET.Element("plugin")
+            plugin.text = "Mobility"
+            conf = ET.Element("plugin_config")
+            positions = ET.Element("positions")
+            positions.set("EXPORT", "copy")
+            positions.text = f"[CONTIKI_DIR]/examples/6tisch/simple-node/simulations/positions/{test.replace('.csc', '.dat')}"
+            conf.append(positions)
+            plugin.append(conf)
+            element.append(plugin)
+    root.write(file)
+
+
 if os.path.isdir("/home/user/"):
     cooja_jar = "/home/user/contiki-ng/tools/cooja/dist/cooja.jar"
     run_dir = "/home/user/contiki-ng/examples/6tisch/simple-node/"
@@ -55,16 +98,17 @@ tests.sort()
 os.chdir(run_dir)  # change working directory to run_dir
 
 for test in tests:  # run each test from tests_dir
-    shutil.copy(f"{tests_dir}{test}", f"{run_dir}{test}")  # copy test to run_dir
 
     for seed in seeds:  # run test with each seed
 
         for firmware in firmwares:  # run test with every firmware
+            shutil.copy(f"{tests_dir}{test}", f"{run_dir}{test}")  # copy test to run_dir
             remove_command_in_test(run_dir, test)  # remove commands in simulation test file
             update_firmware_in_test(run_dir, test, firmware)  # change firmware in file
+            add_mobility_in_test(run_dir, test)
+            add_scriptrunner_in_test(run_dir, test)
             print(f"\n\n ########### Now running test '{test}' with firmware '{firmware}' and seed '{seed}' ##############\n")
             run_test(cooja_jar, run_dir, test, seed)  # run simulation with seed
             os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware.split('.')[0]}_{seed}.testlog")  # move simulation result log
+            os.remove(f"{run_dir}{test}")  # delete test from run_dir
             time.sleep(1)
-
-    os.remove(f"{run_dir}{test}")  # delete test from run_dir
