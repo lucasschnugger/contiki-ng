@@ -763,7 +763,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
       frame802154_set_pan_id(frame.src_pid);
 
       /* Synchronize on EB */
-      LOG_WARN("DEBUG-SYNC: Timestamp=%u  TxOffset=%u  ASN=%02x.%05lx\n", timestamp, tsch_timing[tsch_ts_tx_offset], tsch_current_asn.ms1b, tsch_current_asn.ls4b);
+//      LOG_WARN("DEBUG-SYNC: Timestamp=%u  TxOffset=%u  ASN=%02x.%05lx\n", timestamp, tsch_timing[tsch_ts_tx_offset], tsch_current_asn.ms1b, tsch_current_asn.ls4b);
       tsch_slot_operation_sync(timestamp - tsch_timing[tsch_ts_tx_offset], &tsch_current_asn);
 
       /* Update global flags */
@@ -814,12 +814,12 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
 struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *current_topology, struct tsch_topology_data *input_topology){
   //If any topology element is null, return the other
   if(current_topology->node_count == 0){
-    LOG_WARN("DEBUG: Current is NULL\n");
+//    LOG_WARN("DEBUG: Current is NULL\n");
     current_topology = input_topology;
     return current_topology;
   }
   if(input_topology->node_count == 0){
-    LOG_WARN("DEBUG: Input is NULL\n");
+//    LOG_WARN("DEBUG: Input is NULL\n");
     return current_topology;
   }
 
@@ -828,12 +828,12 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 
   //For each node in new topology
   for(i = 0; i < input_topology->node_count; i++){
-    LOG_WARN("DEBUG: The ID of this input node is: %u\n", input_topology->node_data[i].node_id);
+//    LOG_WARN("DEBUG: The ID of this input node is: %u\n", input_topology->node_data[i].node_id);
     bool exists = false;
     //Compare to every node in known topology
     for(j = 0; j < current_topology->node_count; j++){
       if(i == 0){
-        LOG_WARN("DEBUG: The ID of this current node is: %u\n", current_topology->node_data[j].node_id);
+//        LOG_WARN("DEBUG: The ID of this current node is: %u\n", current_topology->node_data[j].node_id);
       }
 
       //If src_addr are equal, node already exists.
@@ -848,7 +848,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
            )
                 )
         {
-          LOG_WARN("DEBUG: Updating newer ASN node data with old ID: %u and new ID: %u\n", (unsigned int) current_topology->node_data[j].node_id, (unsigned int) input_topology->node_data[i].node_id);
+//          LOG_WARN("DEBUG: Updating newer ASN node data with old ID: %u and new ID: %u\n", (unsigned int) current_topology->node_data[j].node_id, (unsigned int) input_topology->node_data[i].node_id);
           current_topology->node_data[j] = input_topology->node_data[i];
         }
       }
@@ -856,7 +856,7 @@ struct tsch_topology_data * merge_topology_data(struct tsch_topology_data *curre
 
     //If node does not exist in current topology, add it to nodes to add
     if(exists == false && input_topology->node_data[i].node_id > 0){
-      LOG_WARN("DEBUG: Found new node from input topology. Adding node with ID: %u\n", (unsigned int) input_topology->node_data[i].node_id);
+//      LOG_WARN("DEBUG: Found new node from input topology. Adding node with ID: %u\n", (unsigned int) input_topology->node_data[i].node_id);
       nodesToAdd[nodesToAddNum] = input_topology->node_data[i];
       nodesToAddNum++;
     }
@@ -877,17 +877,17 @@ static void add_discovered_node(int newNode){
   int i;
   for(i = 0; i < total_ebs_received; i++){
     if(unique_ebs_received_ids[i] == newNode){
-      LOG_WARN("\nDEBUG: add_discovered_node already seen this node with id %d. total nodes: %d\n\n",newNode, total_ebs_received);
+//      LOG_WARN("\nDEBUG: add_discovered_node already seen this node with id %d. total nodes: %d\n\n",newNode, total_ebs_received);
       return;
     }
   }
   if(total_ebs_received < max_eb_storage){
     unique_ebs_received_ids[total_ebs_received] = newNode;
     total_ebs_received++;
-    LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
+//    LOG_WARN("\nDEBUG: add_discovered_node added node id %d. result total nodes: %d\n\n",newNode, total_ebs_received);
     LOG_WARN("SIM: Mote=%u discovered EB #%d from mote %u\n", node_id, total_ebs_received, newNode);
   }else{
-    LOG_WARN("DEBUG: Number of unique EBs received > max EB storage. Dropping EB.\n");
+//    LOG_WARN("DEBUG: Number of unique EBs received > max EB storage. Dropping EB.\n");
   }
 
   return;
@@ -929,7 +929,7 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
   }
   rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000 - us_to_shorten), 1, update_custom_asn, NULL);
   if (custom_asn.ls4b % 10 == 0) {
-    LOG_WARN("ASN Custom = %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
+//    LOG_WARN("ASN Custom = %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
 //    LOG_WARN("DEBUG: R-timer-ticks in a time period: %li\n", US_TO_RTIMERTICKS(50000));
   }
 //    RTIMER_BUSYWAIT_UNTIL_ABS(false,t0,US_TO_RTIMERTICKS(15000-us_to_shorten)); // wait until 15ms after increment of ASN
@@ -972,7 +972,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
     //If timeout since first discovered EB, associate now
     if(total_ebs_received > 0 && clock_time() - scanner_timeout > TSCH_CONF_SCAN_EB_TIMEOUT){
-      LOG_WARN("DEBUG: Associating by timeout\n");
+//      LOG_WARN("DEBUG: Associating by timeout\n");
       tsch_associate(&latest_eb, asn_last_updated /*RTIMER_NOW()*/, true);
     }
 
