@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <simconf>
   <project EXPORT="discard">[APPS_DIR]/mrm</project>
   <project EXPORT="discard">[APPS_DIR]/mspsim</project>
@@ -25,7 +24,6 @@
       <identifier>z11</identifier>
       <description>Z1 Mote Type #z11</description>
       <source EXPORT="discard">[CONTIKI_DIR]/examples/6tisch/simple-node/node.c</source>
-      <commands EXPORT="discard">make node.z1 TARGET=z1</commands>
       <firmware EXPORT="copy">[CONTIKI_DIR]/examples/6tisch/simple-node/node.z1</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.RimeAddress</moteinterface>
@@ -143,4 +141,3 @@
     <location_y>0</location_y>
   </plugin>
 </simconf>
-
