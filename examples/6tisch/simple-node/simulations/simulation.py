@@ -89,7 +89,7 @@ if not os.path.isdir(log_dir):
 seeds = [123456, 123458, 123459]
 seeds = random.sample(range(0,999999), 10) # 10 random seeds
 seeds.sort()
-firmwares = ["node.z1", "node-classic.z1"]
+firmwares = ["node-1ebs.z1", "node-2ebs.z1", "node-3ebs.z1", "node-classic-1ebs.z1", "node-classic-2ebs.z1", "node-classic-3ebs.z1"]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
 
