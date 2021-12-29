@@ -1,4 +1,5 @@
-import os, time, shutil
+import os, time, shutil, random
+from xml.etree import cElementTree as ET
 
 
 def run_test(cooja, dir, test, seed):
@@ -9,7 +10,6 @@ def run_test(cooja, dir, test, seed):
 
 def remove_command_in_test(dir, test):
     file = f"{dir}{test}"
-    from xml.etree import cElementTree as ET
     root = ET.parse(file)
     for element in root.iter():
         for subelement in element:
@@ -20,7 +20,6 @@ def remove_command_in_test(dir, test):
 
 def update_firmware_in_test(dir, test, firmware):
     file = f"{dir}{test}"
-    from xml.etree import cElementTree as ET
     root = ET.parse(file)
     for element in root.iter():
         for subelement in element:
@@ -36,7 +35,6 @@ def add_scriptrunner_in_test(dir, test):
         scriptrunner = open(f"{scripts_dir}join.js").read()
     elif test.startswith("create-"):
         scriptrunner = open(f"{scripts_dir}create.js").read()
-    from xml.etree import cElementTree as ET
     root = ET.parse(file)
     for element in root.iter():
         if element.tag == "simconf":
@@ -56,7 +54,6 @@ def add_scriptrunner_in_test(dir, test):
 
 def add_mobility_in_test(dir, test):
     file = f"{dir}{test}"
-    from xml.etree import cElementTree as ET
     root = ET.parse(file)
     for element in root.iter():
         if element.tag == "simconf":
@@ -90,10 +87,16 @@ if not os.path.isdir(log_dir):
     os.mkdir(log_dir)
 
 seeds = [123456, 123458, 123459]
+seeds = random.sample(range(0,999999), 10) # 10 random seeds
 seeds.sort()
 firmwares = ["node.z1", "node-classic.z1"]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
+
+print("")
+print(f"Running tests {tests}.")
+print(f"Running tests on firmwares {firmwares}.")
+print(f"Running tests on seeds {seeds}.")
 
 os.chdir(run_dir)  # change working directory to run_dir
 
