@@ -69,6 +69,30 @@ def add_mobility_in_test(dir, test):
     root.write(file)
 
 
+def check_if_test_successful(test_output_file_path):
+    f = open(test_output_file_path, "r")
+    test_output = f.read()
+    if("TEST FAILED" in test_output):
+        print("##### Test failed: 'TEST FAILED' found  #####")
+        return False
+    if("TEST OK" not in test_output):
+        print("##### Test failed: 'TEST OK' not found  #####")
+        return False
+    if("Network created with " not in test_output):
+        print("##### Test failed: network not established  #####")
+        return False
+
+    network_established_time = float(test_output.split("Network established time: ")[1].split(". First")[0])
+    first_eb_time = float(test_output.split("First EB time: ")[1].split(". Join")[0])
+    join_time = float(test_output.split("Join time:")[1].split(". Parents")[0])
+    parents_considered = int(test_output.split("Parents considered: ")[1].split(".\n")[0])
+
+    if join_time >= network_established_time: #if joining EB joins before network is completely established
+        print("##### Test failed: Joining node finishes network #####")
+        return False
+
+    return True
+
 if os.path.isdir("/home/user/"):
     cooja_jar = "/home/user/contiki-ng/tools/cooja/dist/cooja.jar"
     run_dir = "/home/user/contiki-ng/examples/6tisch/simple-node/"
@@ -86,10 +110,11 @@ if not os.path.isdir(pos_dir):
 if not os.path.isdir(log_dir):
     os.mkdir(log_dir)
 
-seeds = [123456, 123458, 123459]
-seeds = random.sample(range(0,999999), 10) # 10 random seeds
+# seeds = [15557,65890,237601,268521,537634,571714,881378,928542,963159,978437]
+seeds = random.sample(range(0,999999), 15) # 15 random seeds
 seeds.sort()
-firmwares = ["node-1ebs.z1", "node-2ebs.z1", "node-3ebs.z1", "node-classic-1ebs.z1", "node-classic-2ebs.z1", "node-classic-3ebs.z1"]
+firmwares = ["node-025ebs.z1", "node-05ebs.z1", "node-1ebs.z1", "node-2ebs.z1", "node-3ebs.z1",
+             "node-classic-025ebs.z1", "node-classic-05ebs.z1", "node-classic-1ebs.z1", "node-classic-2ebs.z1", "node-classic-3ebs.z1"]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
 
@@ -112,6 +137,10 @@ for test in tests:  # run each test from tests_dir
             add_scriptrunner_in_test(run_dir, test)
             print(f"\n\n ########### Now running test '{test}' with firmware '{firmware}' and seed '{seed}' ##############\n")
             run_test(cooja_jar, run_dir, test, seed)  # run simulation with seed
-            os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware.split('.')[0]}_{seed}.testlog")  # move simulation result log
+            local_seed = seed
+            while not check_if_test_successful(f"{run_dir}COOJA.testlog"):  # evaluate if test is OK
+                local_seed = random.randint(0,999999)
+                run_test(cooja_jar, run_dir, test, local_seed)
+            os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware.split('.')[0]}_{local_seed}.testlog")  # move simulation result log
             os.remove(f"{run_dir}{test}")  # delete test from run_dir
             time.sleep(1)

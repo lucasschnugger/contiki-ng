@@ -20,6 +20,11 @@ while(1){
     // id; id of current mote
     // msg; current output message from mote
 
+    // if test failed due to various reasons --> stop test
+    if (msg.contains("left network")){
+        log.testFailed();
+    }
+
     // if output message contains results from simulation
     if (msg.contains("SIM:")){
         if (msg.contains("disassociated")){ // if mote disassociated
@@ -40,11 +45,15 @@ while(1){
             var discoveredMotes = parseInt(matches[2]);
             log.log(us_to_second_string(time) + ": Mote " + moteId + " discovered " + discoveredMotes + " motes before associating.\n");
             if(moteId == mote_count){ //Always highest ID mote joining last
-                log.log("Network established time: "+us_to_second_string(network_established_time)+
+                log.log("Network established time: "+us_to_second_string(network_established_time) + ","+
                     ". First EB time: "+us_to_second_string(first_eb_time)+
                     ". Join time: " + us_to_second_string(time) +
                     ". Parents considered: " + discoveredMotes +".\n"
                 );
+                log.log(us_to_second_string(network_established_time) +
+                        "," + us_to_second_string(first_eb_time) +
+                        "," + us_to_second_string(time) +
+                        "," + discoveredMotes + "\n");
                 log.testOK();
             }
         }
