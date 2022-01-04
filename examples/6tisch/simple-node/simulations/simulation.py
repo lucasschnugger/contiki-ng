@@ -93,6 +93,7 @@ def check_if_test_successful(test_output_file_path):
 
     return True
 
+
 def add_testlog_parameters_csv(seed, test, firmware, test_output_file_path):
     test_params = test.split("-")
     nodes = test_params[2]
@@ -106,7 +107,7 @@ def add_testlog_parameters_csv(seed, test, firmware, test_output_file_path):
     file = open(test_output_file_path, "r")
     new_file_content = ""
     for line in file:
-        if line.contains(","):
+        if "," in line:
             new_file_content += csv_result_str + "," + line
         else:
             new_file_content += line
