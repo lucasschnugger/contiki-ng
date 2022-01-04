@@ -164,7 +164,7 @@ for test in tests:  # run each test from tests_dir
             while not check_if_test_successful(f"{run_dir}COOJA.testlog"):  # evaluate if test is OK
                 local_seed = random.randint(0,999999)
                 run_test(cooja_jar, run_dir, test, local_seed)
-            add_testlog_parameters_csv(seed, test, firmware, f"{run_dir}COOJA.testlog")  # add test parameters to csv line in file
+            add_testlog_parameters_csv(local_seed, test, firmware, f"{run_dir}COOJA.testlog")  # add test parameters to csv line in file
             os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware.split('.')[0]}_{local_seed}.testlog")  # move simulation result log
             os.remove(f"{run_dir}{test}")  # delete test from run_dir
             time.sleep(1)
