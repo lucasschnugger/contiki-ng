@@ -1,4 +1,4 @@
-import os, time, shutil, random
+import os, time, shutil, random, re
 from xml.etree import cElementTree as ET
 
 
@@ -18,13 +18,19 @@ def remove_command_in_test(dir, test):
     root.write(file)
 
 
-def update_firmware_in_test(dir, test, firmware):
+def update_firmware_in_test(dir, test, firmware_network, firmware_joining):
     file = f"{dir}{test}"
     root = ET.parse(file)
     for element in root.iter():
-        for subelement in element:
-            if subelement.tag == "firmware":
-                subelement.text = f"[CONTIKI_DIR]/examples/6tisch/simple-node/{firmware}"
+        if element.tag == "motetype":
+            motetype = ""
+            for subelement in element:
+                if subelement.tag == "identifier":
+                    motetype = subelement.text
+            for subelement in element:
+                if subelement.tag == "firmware":
+                    firmware = firmware_joining if motetype == "z1-joining-node" else firmware_network
+                    subelement.text = f"[CONTIKI_DIR]/examples/6tisch/simple-node/{firmware}"
     root.write(file)
 
 
@@ -95,23 +101,33 @@ def check_if_test_successful(test_output_file_path):
 
 
 def add_testlog_parameters_csv(seed, test, firmware, test_output_file_path):
-    test_params = test.split("-")
+    test_params = test.split(".")[0].split("-")
     nodes = test_params[2]
     topology = test_params[1]
-    firmware_params = firmware.split("-")
+    firmware_params = firmware.split(".")[0].split("-")
     tsch_version = firmware_params[1]
-    channels = firmware_params[2]
-    assoc_timeout = firmware_params[3]
+    channels = re.sub("[^0-9]", "", firmware_params[2])
+    assoc_timeout = re.sub("[^0-9]", "", firmware_params[3])
     csv_result = [seed, nodes, channels, topology, tsch_version, assoc_timeout]
     csv_result_str = ",".join([str(elem) for elem in csv_result])
     file = open(test_output_file_path, "r")
     new_file_content = ""
     for line in file:
         if "," in line:
-            new_file_content += csv_result_str + "," + line
+            new_file_content += f"{csv_result_str},{line}"
         else:
             new_file_content += line
     file.close()
+    file = open(test_output_file_path, "w")
+    file.write(new_file_content)
+    file.close()
+
+
+def add_testlog_firmwares(firmware_network, firmware_joining, test_output_file_path):
+    file = open(test_output_file_path, "r")
+    content = file.read()
+    file.close()
+    new_file_content = f"z1-network-node firmware: {firmware_network}\n" + f"z1-joining-node firmware: {firmware_joining}\n" + content
     file = open(test_output_file_path, "w")
     file.write(new_file_content)
     file.close()
@@ -137,8 +153,18 @@ if not os.path.isdir(log_dir):
 # seeds = [15557,65890,237601,268521,537634,571714,881378,928542,963159,978437]
 seeds = random.sample(range(0,999999), 15) # 15 random seeds
 seeds.sort()
-firmwares = ["node-custom-4c-4s.z1", "node-custom-4c-8s.z1", "node-custom-4c-16s.z1", "node-custom-4c-32s.z1", "node-custom-4c-48s.z1",
-             "node-classic-4c-4s.z1", "node-classic-4c-8s.z1", "node-classic-4c-16s.z1", "node-classic-4c-32s.z1", "node-classic-4c-48s.z1"]
+firmwares = [
+    {"joining": "node-custom-4c-16s.z1", "network": "node-network-4c.z1"},
+    {"joining": "node-custom-8c-16s.z1", "network": "node-network-8c.z1"},
+    {"joining": "node-custom-12c-16s.z1", "network": "node-network-12c.z1"},
+    {"joining": "node-custom-16c-16s.z1", "network": "node-network-16c.z1"},
+    {"joining": "node-custom-20c-16s.z1", "network": "node-network-20c.z1"},
+    {"joining": "node-classic-4c-16s.z1", "network": "node-network-4c.z1"},
+    {"joining": "node-classic-8c-16s.z1", "network": "node-network-8c.z1"},
+    {"joining": "node-classic-12c-16s.z1", "network": "node-network-12c.z1"},
+    {"joining": "node-classic-16c-16s.z1", "network": "node-network-16c.z1"},
+    {"joining": "node-classic-20c-16s.z1", "network": "node-network-20c.z1"}
+]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
 
@@ -156,16 +182,17 @@ for test in tests:  # run each test from tests_dir
         for firmware in firmwares:  # run test with every firmware
             shutil.copy(f"{tests_dir}{test}", f"{run_dir}{test}")  # copy test to run_dir
             remove_command_in_test(run_dir, test)  # remove commands in simulation test file
-            update_firmware_in_test(run_dir, test, firmware)  # change firmware in file
-            add_mobility_in_test(run_dir, test)
-            add_scriptrunner_in_test(run_dir, test)
+            update_firmware_in_test(run_dir, test, firmware["network"], firmware["joining"])  # change firmware in file
+            add_mobility_in_test(run_dir, test)  # add mobility file to test
+            add_scriptrunner_in_test(run_dir, test)  # add scriptrunner to test for extraction of data and controlling test
             print(f"\n\n ########### Now running test '{test}' with firmware '{firmware}' and seed '{seed}' ##############\n")
             run_test(cooja_jar, run_dir, test, seed)  # run simulation with seed
             local_seed = seed
             while not check_if_test_successful(f"{run_dir}COOJA.testlog"):  # evaluate if test is OK
                 local_seed = random.randint(0,999999)
                 run_test(cooja_jar, run_dir, test, local_seed)
-            add_testlog_parameters_csv(local_seed, test, firmware, f"{run_dir}COOJA.testlog")  # add test parameters to csv line in file
-            os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware.split('.')[0]}_{local_seed}.testlog")  # move simulation result log
+            add_testlog_parameters_csv(local_seed, test, firmware["joining"], f"{run_dir}COOJA.testlog")  # add test parameters to csv line in file
+            add_testlog_firmwares(firmware["network"], firmware["joining"], f"{run_dir}COOJA.testlog")  # add node firmwares used to top of file
+            os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware['joining'].split('.')[0]}_{local_seed}.testlog")  # move simulation result log
             os.remove(f"{run_dir}{test}")  # delete test from run_dir
             time.sleep(1)
