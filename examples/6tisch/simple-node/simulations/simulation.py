@@ -158,12 +158,10 @@ firmwares = [
     {"joining": "node-custom-8c-16s.z1", "network": "node-network-8c.z1"},
     {"joining": "node-custom-12c-16s.z1", "network": "node-network-12c.z1"},
     {"joining": "node-custom-16c-16s.z1", "network": "node-network-16c.z1"},
-    {"joining": "node-custom-20c-16s.z1", "network": "node-network-20c.z1"},
     {"joining": "node-classic-4c-16s.z1", "network": "node-network-4c.z1"},
     {"joining": "node-classic-8c-16s.z1", "network": "node-network-8c.z1"},
     {"joining": "node-classic-12c-16s.z1", "network": "node-network-12c.z1"},
-    {"joining": "node-classic-16c-16s.z1", "network": "node-network-16c.z1"},
-    {"joining": "node-classic-20c-16s.z1", "network": "node-network-20c.z1"}
+    {"joining": "node-classic-16c-16s.z1", "network": "node-network-16c.z1"}
 ]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
