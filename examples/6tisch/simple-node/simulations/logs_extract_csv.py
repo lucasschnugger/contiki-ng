@@ -6,6 +6,7 @@ elif os.path.isdir("/Users/Lucas/"):
     log_dir = "/Users/Lucas/Documents/Projects/contiki-ng-fork/examples/6tisch/simple-node/simulations/logs/"
 
 logs = [f for f in os.listdir(log_dir) if os.path.isfile(f"{log_dir}{f}")]
+logs.sort()
 
 csv_lines = []
 
