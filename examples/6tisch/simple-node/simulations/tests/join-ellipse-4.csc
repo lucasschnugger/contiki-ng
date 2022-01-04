@@ -22,8 +22,8 @@
     </events>
     <motetype>
       org.contikios.cooja.mspmote.Z1MoteType
-      <identifier>z11</identifier>
-      <description>Z1 Mote Type #z11</description>
+      <identifier>z1-network-node</identifier>
+      <description>Z1 Network Mote</description>
       <firmware EXPORT="copy">[CONTIKI_DIR]/examples/6tisch/simple-node/node.z1</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.RimeAddress</moteinterface>
@@ -38,6 +38,24 @@
       <moteinterface>org.contikios.cooja.mspmote.interfaces.MspLED</moteinterface>
       <moteinterface>org.contikios.cooja.mspmote.interfaces.MspDebugOutput</moteinterface>
     </motetype>
+    <motetype>
+			org.contikios.cooja.mspmote.Z1MoteType
+			<identifier>z1-joining-node</identifier>
+			<description>Z1 Joining Mote</description>
+			<firmware EXPORT="copy">[CONTIKI_DIR]/examples/6tisch/simple-node/node.z1</firmware>
+			<moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
+			<moteinterface>org.contikios.cooja.interfaces.RimeAddress</moteinterface>
+			<moteinterface>org.contikios.cooja.interfaces.IPAddress</moteinterface>
+			<moteinterface>org.contikios.cooja.interfaces.Mote2MoteRelations</moteinterface>
+			<moteinterface>org.contikios.cooja.interfaces.MoteAttributes</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.MspClock</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.MspMoteID</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.MspButton</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.Msp802154Radio</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.MspDefaultSerial</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.MspLED</moteinterface>
+			<moteinterface>org.contikios.cooja.mspmote.interfaces.MspDebugOutput</moteinterface>
+		</motetype>
     <mote>
       <breakpoints />
       <interface_config>
@@ -54,7 +72,7 @@
         org.contikios.cooja.mspmote.interfaces.MspMoteID
         <id>1</id>
       </interface_config>
-      <motetype_identifier>z11</motetype_identifier>
+      <motetype_identifier>z1-network-node</motetype_identifier>
     </mote>
     <mote>
       <breakpoints />
@@ -72,7 +90,7 @@
         org.contikios.cooja.mspmote.interfaces.MspMoteID
         <id>2</id>
       </interface_config>
-      <motetype_identifier>z11</motetype_identifier>
+      <motetype_identifier>z1-network-node</motetype_identifier>
     </mote>
     <mote>
       <breakpoints />
@@ -90,7 +108,7 @@
         org.contikios.cooja.mspmote.interfaces.MspMoteID
         <id>3</id>
       </interface_config>
-      <motetype_identifier>z11</motetype_identifier>
+      <motetype_identifier>z1-network-node</motetype_identifier>
     </mote>
     <mote>
       <breakpoints />
@@ -108,7 +126,7 @@
         org.contikios.cooja.mspmote.interfaces.MspMoteID
         <id>4</id>
       </interface_config>
-      <motetype_identifier>z11</motetype_identifier>
+      <motetype_identifier>z1-joining-node</motetype_identifier>
     </mote>
   </simulation>
   <plugin>
