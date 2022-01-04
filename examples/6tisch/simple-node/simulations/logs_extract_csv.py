@@ -15,5 +15,5 @@ for log in logs:
             if "," in line:
                 csv_lines.append(line)
 
-csv_lines_str = "\n".join(csv_lines)
+csv_lines_str = "".join(csv_lines)
 print(csv_lines_str)
