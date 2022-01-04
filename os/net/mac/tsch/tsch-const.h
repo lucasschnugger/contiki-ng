@@ -56,6 +56,8 @@
 #define LINK_OPTION_TIME_KEEPING    8
 
 /* Default IEEE 802.15.4e hopping sequences, obtained from https://gist.github.com/twatteyne/2e22ee3c1a802b685695 */
+/* 20 channels, sequence length 20 */
+#define TSCH_HOPPING_SEQUENCE_20_20 (uint8_t[]){ 16, 17, 3, 23, 18, 26, 15, 25, 7, 22, 19, 11, 5, 12, 13, 24, 14, 20, 21, 9 }
 /* 16 channels, sequence length 16 */
 #define TSCH_HOPPING_SEQUENCE_16_16 (uint8_t[]){ 16, 17, 23, 18, 26, 15, 25, 22, 19, 11, 12, 13, 24, 14, 20, 21 }
 /* 12 channels, sequence length 12 */
