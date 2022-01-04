@@ -45,7 +45,7 @@ while(1){
             var discoveredMotes = parseInt(matches[2]);
             log.log(us_to_second_string(time) + ": Mote " + moteId + " discovered " + discoveredMotes + " motes before associating.\n");
             if(moteId == mote_count){ //Always highest ID mote joining last
-                log.log("Network established time: "+us_to_second_string(network_established_time) + ","+
+                log.log("Network established time: "+us_to_second_string(network_established_time) +
                     ". First EB time: "+us_to_second_string(first_eb_time)+
                     ". Join time: " + us_to_second_string(time) +
                     ". Parents considered: " + discoveredMotes +".\n"

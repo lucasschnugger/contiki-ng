@@ -93,6 +93,29 @@ def check_if_test_successful(test_output_file_path):
 
     return True
 
+def add_testlog_parameters_csv(seed, test, firmware, test_output_file_path):
+    test_params = test.split("-")
+    nodes = test_params[2]
+    topology = test_params[1]
+    firmware_params = firmware.split("-")
+    tsch_version = firmware_params[1]
+    channels = firmware_params[2]
+    assoc_timeout = firmware_params[3]
+    csv_result = [seed, nodes, channels, topology, tsch_version, assoc_timeout]
+    csv_result_str = ",".join([str(elem) for elem in csv_result])
+    file = open(test_output_file_path, "r")
+    new_file_content = ""
+    for line in file:
+        if line.contains(","):
+            new_file_content += csv_result_str + "," + line
+        else:
+            new_file_content += line
+    file.close()
+    file = open(test_output_file_path, "w")
+    file.write(new_file_content)
+    file.close()
+
+
 if os.path.isdir("/home/user/"):
     cooja_jar = "/home/user/contiki-ng/tools/cooja/dist/cooja.jar"
     run_dir = "/home/user/contiki-ng/examples/6tisch/simple-node/"
@@ -113,8 +136,8 @@ if not os.path.isdir(log_dir):
 # seeds = [15557,65890,237601,268521,537634,571714,881378,928542,963159,978437]
 seeds = random.sample(range(0,999999), 15) # 15 random seeds
 seeds.sort()
-firmwares = ["node-025ebs.z1", "node-05ebs.z1", "node-1ebs.z1", "node-2ebs.z1", "node-3ebs.z1",
-             "node-classic-025ebs.z1", "node-classic-05ebs.z1", "node-classic-1ebs.z1", "node-classic-2ebs.z1", "node-classic-3ebs.z1"]
+firmwares = ["node-custom-4c-4s.z1", "node-custom-4c-8s.z1", "node-custom-4c-16s.z1", "node-custom-4c-32s.z1", "node-custom-4c-48s.z1",
+             "node-classic-4c-4s.z1", "node-classic-4c-8s.z1", "node-classic-4c-16s.z1", "node-classic-4c-32s.z1", "node-classic-4c-48s.z1"]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
 
@@ -141,6 +164,7 @@ for test in tests:  # run each test from tests_dir
             while not check_if_test_successful(f"{run_dir}COOJA.testlog"):  # evaluate if test is OK
                 local_seed = random.randint(0,999999)
                 run_test(cooja_jar, run_dir, test, local_seed)
+            add_testlog_parameters_csv(seed, test, firmware, f"{run_dir}COOJA.testlog")  # add test parameters to csv line in file
             os.rename(f"{run_dir}COOJA.testlog", f"{log_dir}{test.split('.')[0]}_{firmware.split('.')[0]}_{local_seed}.testlog")  # move simulation result log
             os.remove(f"{run_dir}{test}")  # delete test from run_dir
             time.sleep(1)
