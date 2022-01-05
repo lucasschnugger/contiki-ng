@@ -993,10 +993,10 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
     if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
       struct tsch_asn_divisor_t thsl;
-      thsl.val = 4;
-      thsl.asn_ms1b_remainder = ((0xffffffff % (4)) + 1) % (4);
+      thsl.val = sizeof(TSCH_JOIN_HOPPING_SEQUENCE);
+      thsl.asn_ms1b_remainder = ((0xffffffff % (thsl.val)) + 1) % (thsl.val);
       uint16_t index_of_0 = TSCH_ASN_MOD(custom_asn, thsl);
-      uint16_t index_of_offset = (index_of_0 + 0) % 4;
+      uint16_t index_of_offset = (index_of_0 + 0) % thsl.val;
       scan_channel = tsch_hopping_sequence[index_of_offset];
     }
 
