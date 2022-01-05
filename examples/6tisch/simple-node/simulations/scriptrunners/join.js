@@ -1,4 +1,4 @@
-TIMEOUT(720000, log.log("\nSIMULATION ENDED BY TIMEOUT\n")); // End simulation after 600,000 ms (10 min.)
+TIMEOUT(600000, log.log("\nSIMULATION ENDED BY TIMEOUT\n")); // End simulation after 600,000 ms (10 min.)
 
 var motes = sim.getMotes();
 var mote_count = motes.length;
