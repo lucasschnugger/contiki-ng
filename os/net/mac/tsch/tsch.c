@@ -87,7 +87,7 @@ static struct rtimer t;
 rtimer_clock_t asn_last_updated = 0;
 static struct input_packet latest_eb;
 static int total_ebs_received = 0;
-static int eb_join_evaluation_max = 10;
+static int eb_join_evaluation_max = 2;
 static long long us_to_shorten_periods = 0;
 static bool stop_asn_custom_update = false;
 

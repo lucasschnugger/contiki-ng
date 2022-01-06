@@ -60,7 +60,7 @@
 
 #define TSCH_PACKET_CONF_EB_WITH_TOPOLOGY_DATA 1
 #define TSCH_CONF_SCAN_EB_TIMEOUT CLOCK_SECOND * 16 // Timeout is 16 sec
-#define TSCH_CONF_DEFAULT_HOPPING_SEQUENCE TSCH_HOPPING_SEQUENCE_4_4 // Channel hopping sequence from tsch-const.h
+#define TSCH_CONF_DEFAULT_HOPPING_SEQUENCE TSCH_HOPPING_SEQUENCE_16_16 // Channel hopping sequence from tsch-const.h
 
 #if WITH_SECURITY
 
