@@ -1,0 +1,8 @@
+#node time(s) x y
+
+#initial positions of nodes
+1 0.0 150 40
+
+#moving node (0-indexed)
+1 180.0 40 40
+1 999.0 40 40
