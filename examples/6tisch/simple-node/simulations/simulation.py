@@ -75,6 +75,17 @@ def add_mobility_in_test(dir, test):
     root.write(file)
 
 
+def add_powertracker_in_test(dir, test):
+    file = f"{dir}{test}"
+    root = ET.parse(file)
+    for element in root.iter():
+        if element.tag == "simconf":
+            plugin = ET.Element("plugin")
+            plugin.text = "PowerTracker"
+            element.append(plugin)
+    root.write(file)
+
+
 def check_if_test_successful(test_output_file_path):
     f = open(test_output_file_path, "r")
     test_output = f.read()
@@ -175,7 +186,8 @@ for test in tests:  # run each test from tests_dir
             shutil.copy(f"{tests_dir}{test}", f"{run_dir}{test}")  # copy test to run_dir
             remove_command_in_test(run_dir, test)  # remove commands in simulation test file
             update_firmware_in_test(run_dir, test, firmware["network"], firmware["joining"])  # change firmware in file
-            add_mobility_in_test(run_dir, test)  # add mobility file to test
+            add_mobility_in_test(run_dir, test)  # add mobility plugin + file to test
+            add_powertracker_in_test(run_dir, test)  # add powertracker plugin to test
             add_scriptrunner_in_test(run_dir, test)  # add scriptrunner to test for extraction of data and controlling test
             print(f"\n\n ########### Now running test '{test}' with firmware '{firmware}' and seed '{seed}' ##############\n")
             run_test(cooja_jar, run_dir, test, seed)  # run simulation with seed
