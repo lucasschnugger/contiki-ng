@@ -908,13 +908,10 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
   long long asns_to_skip = 1;
   if (time_since_packet_pending != 0) {
     long long time_since_packet_pending_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(time_since_packet_pending, t0)));
-//    LOG_WARN("Time since (before add) = %lli\n", time_since_packet_pending_us);
-    time_since_packet_pending_us = time_since_packet_pending_us + 1000;
-//    LOG_WARN("Time since (after add) = %lli\n", time_since_packet_pending_us);
+    time_since_packet_pending_us = time_since_packet_pending_us + 7900;
     asns_to_skip = time_since_packet_pending_us / 15000;
     us_to_shorten_periods = time_since_packet_pending_us % 15000;
     time_since_packet_pending = 0;
-//    LOG_WARN("US since pending %lli   ASNs skipped: %lli   US shortened %lli\n", time_since_packet_pending_us, asns_to_skip, us_to_shorten);
   }
   TSCH_ASN_INC(custom_asn, asns_to_skip);
   long long us_to_shorten = 0;
@@ -972,7 +969,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
     //If timeout since first discovered EB, associate now
     if(total_ebs_received > 0 && clock_time() - scanner_timeout > TSCH_CONF_SCAN_EB_TIMEOUT){
-//      LOG_WARN("DEBUG: Associating by timeout\n");
+      //LOG_WARN("DEBUG: Associating by timeout\n");
       tsch_associate(&latest_eb, asn_last_updated /*RTIMER_NOW()*/, true);
     }
 
@@ -991,6 +988,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
       scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
     }
 
+    char radio_status[10];
     if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
       struct tsch_asn_divisor_t thsl;
       thsl.val = sizeof(TSCH_JOIN_HOPPING_SEQUENCE);
@@ -1000,14 +998,29 @@ PT_THREAD(tsch_scan(struct pt *pt))
       scan_channel = tsch_hopping_sequence[index_of_offset];
     }
 
+      if(!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)) {
+          struct tsch_asn_divisor_t thsl;
+          thsl.val = 3;
+          thsl.asn_ms1b_remainder = ((0xffffffff % (thsl.val)) + 1) % (thsl.val);
+          if (TSCH_ASN_MOD(custom_asn, thsl) == 0) {
+              strcpy(radio_status, "radio: on");
+              NETSTACK_RADIO.on();
+          } else {
+              strcpy(radio_status, "radio: off");
+              NETSTACK_RADIO.off();
+          }
+      }else{
+          /* Turn radio on and wait for EB */
+          NETSTACK_RADIO.on();
+      }
+
     if(current_channel != scan_channel){
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
       current_channel = scan_channel;
-      LOG_INFO("scanning on channel %u   ASN %02x.%08lx\n", scan_channel, custom_asn.ms1b, custom_asn.ls4b);
+      LOG_INFO("scanning on channel %u   ASN %02x.%08lx, %s\n", scan_channel, custom_asn.ms1b, custom_asn.ls4b, radio_status);
     }
 
-    /* Turn radio on and wait for EB */
-    NETSTACK_RADIO.on();
+
 
     is_packet_pending = NETSTACK_RADIO.pending_packet();
     if(!is_packet_pending && NETSTACK_RADIO.receiving_packet()) {
@@ -1037,12 +1050,13 @@ PT_THREAD(tsch_scan(struct pt *pt))
           uint8_t hdrlen;
           if(tsch_packet_parse_eb(input_eb.payload, input_eb.len, &frame, &ies, &hdrlen, 0) != 0) {
             TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
+            LOG_INFO("scan: EB received\n");
             time_since_packet_pending = t0;
             add_discovered_node(ies.ie_topology.src_node_id);
             latest_eb = input_eb;
             //total_ebs_received = 1;
             //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
-            if((total_ebs_received == count_active_nodes(&ies) || total_ebs_received >= eb_join_evaluation_max)){
+            if((total_ebs_received == count_active_nodes(&ies) || total_ebs_received >= eb_join_evaluation_max) && false){
               tsch_associate(&input_eb, t0, false);
             }else if(scanner_timeout == 0){
               scanner_timeout = clock_time();

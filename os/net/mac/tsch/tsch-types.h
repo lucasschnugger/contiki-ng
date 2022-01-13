@@ -59,7 +59,7 @@ struct tsch_node_data {
     uint16_t parent; //Node ID of parent
     bool left_network; //If node has left network
     struct tsch_asn_t asn; //Absolute Slot Number for when data was updated
-    uint16_t node_id; //Link Layer Address. Used as identifier
+    uint16_t node_id; //Node ID. Used as identifier
 };
 struct tsch_topology_data {
     uint16_t src_node_id;
