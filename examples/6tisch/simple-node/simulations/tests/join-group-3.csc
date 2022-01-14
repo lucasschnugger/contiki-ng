@@ -24,7 +24,7 @@
       org.contikios.cooja.mspmote.Z1MoteType
       <identifier>z1-network-node</identifier>
       <description>Z1 Network Mote</description>
-      <firmware EXPORT="copy">[CONTIKI_DIR]/examples/6tisch/simple-node/node.z1</firmware>
+      <firmware EXPORT="copy">[CONTIKI_DIR]/examples/6tisch/simple-node/node-network-4c.z1</firmware>
       <moteinterface>org.contikios.cooja.interfaces.Position</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.RimeAddress</moteinterface>
       <moteinterface>org.contikios.cooja.interfaces.IPAddress</moteinterface>

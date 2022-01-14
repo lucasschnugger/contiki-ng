@@ -161,6 +161,7 @@ extern struct tsch_topology_data topology;
 extern uint16_t parent_node_id;
 PROCESS_NAME(update_custom_asn_process);
 extern struct tsch_asn_t custom_asn;
+extern rtimer_clock_t time_since_packet_pending;
 
 /* Are we coordinator of the TSCH network? */
 extern int tsch_is_coordinator;

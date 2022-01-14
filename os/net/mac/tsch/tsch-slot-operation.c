@@ -1194,6 +1194,7 @@ tsch_slot_operation_start(void)
     /* Update current slot start */
     prev_slot_start = current_slot_start;
     current_slot_start += time_to_next_active_slot;
+    time_since_packet_pending = current_slot_start;
   } while(!tsch_schedule_slot_operation(&slot_operation_timer, prev_slot_start, time_to_next_active_slot, "assoc"));
 }
 /*---------------------------------------------------------------------------*/

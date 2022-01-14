@@ -600,11 +600,17 @@ tsch_disassociate(void)
 {
   if(tsch_is_associated == 1) {
     //Reset custom variables
-    memset(&custom_asn, 0, sizeof(struct tsch_asn_t));
+    custom_asn = tsch_current_asn;
+    TSCH_ASN_INC(custom_asn, 100);
+    int i = 0;
+    for(i = 0; i < 100; i++){
+        time_since_packet_pending += US_TO_RTIMERTICKS(15000);
+    }
+
     total_ebs_received = 0;
     parent_node_id = 0;
     asn_last_updated = 0;
-    time_since_packet_pending = 0;
+    //time_since_packet_pending = RTIMER_NOW();
     us_to_shorten_periods = 0;
     new_asn_value_ready = true;
     memset(&topology, 0, sizeof(struct tsch_topology_data));
@@ -615,6 +621,7 @@ tsch_disassociate(void)
     tsch_adaptive_timesync_reset();
     process_poll(&tsch_process);
     LOG_WARN("SIM: Mote=%u disassociated\n", node_id);
+
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -894,11 +901,18 @@ static void add_discovered_node(int newNode){
 }
 
 static void update_custom_asn(struct rtimer *t, void *ptr){
-  if(tsch_is_associated || stop_asn_custom_update){
+
+    rtimer_clock_t t0;
+    t0 = RTIMER_NOW();
+
+    if (true) {
+    LOG_WARN("DEBUG: update asn running\n");
+    }
+    if(tsch_is_associated || stop_asn_custom_update){
+      rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
       return;
   }
-  rtimer_clock_t t0;
-  t0 = RTIMER_NOW();
+
   asn_last_updated = RTIMER_NOW();
   //If ASN not initialized yet, keep checking if initialized
   if (custom_asn.ms1b == 0 && custom_asn.ls4b == 0){
@@ -928,10 +942,7 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
     }
   }
   rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000 - us_to_shorten), 1, update_custom_asn, NULL);
-  if (custom_asn.ls4b % 10 == 0) {
-//    LOG_WARN("ASN Custom = %02x.%08lx\n", custom_asn.ms1b, custom_asn.ls4b);
-//    LOG_WARN("DEBUG: R-timer-ticks in a time period: %li\n", US_TO_RTIMERTICKS(50000));
-  }
+
 //    RTIMER_BUSYWAIT_UNTIL_ABS(false,t0,US_TO_RTIMERTICKS(15000-us_to_shorten)); // wait until 15ms after increment of ASN
 }
 
@@ -1108,7 +1119,9 @@ PROCESS_THREAD(tsch_process, ev, data)
         tsch_start_coordinator();
       } else {
         /* Start scanning, will attempt to join when receiving an EB */
-        process_start(&update_custom_asn_process, NULL);
+        //PT_SPAWN(, &update_pt, (&update_custom_asn_pt));
+        //PROCESS_PT_SPAWN(&update_pt, update_custom_asn_pt(&update_pt));
+        //process_start(&update_custom_asn_process, NULL);
         PROCESS_PT_SPAWN(&scan_pt, tsch_scan(&scan_pt));
       }
     }
