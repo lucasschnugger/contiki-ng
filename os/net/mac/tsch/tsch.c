@@ -601,12 +601,7 @@ tsch_disassociate(void)
   if(tsch_is_associated == 1) {
     //Reset custom variables
     custom_asn = tsch_current_asn;
-    TSCH_ASN_INC(custom_asn, 100);
-    int i = 0;
-    for(i = 0; i < 100; i++){
-        time_since_packet_pending += US_TO_RTIMERTICKS(15000);
-    }
-
+    //TSCH_ASN_DEC(custom_asn,1);
     total_ebs_received = 0;
     parent_node_id = 0;
     asn_last_updated = 0;
@@ -616,12 +611,11 @@ tsch_disassociate(void)
     memset(&topology, 0, sizeof(struct tsch_topology_data));
     stop_asn_custom_update = false;
     memset(&latest_eb, 0, sizeof(struct input_packet));
-
+    memset(&unique_ebs_received_ids, 0, sizeof(int)*max_eb_storage);
     tsch_is_associated = 0;
     tsch_adaptive_timesync_reset();
     process_poll(&tsch_process);
     LOG_WARN("SIM: Mote=%u disassociated\n", node_id);
-
   }
 }
 /*---------------------------------------------------------------------------*/
@@ -643,7 +637,7 @@ tsch_associate(const struct input_packet *input_eb, rtimer_clock_t timestamp, bo
   }
 
   if(use_custom_asn){
-    timestamp = timestamp + US_TO_RTIMERTICKS(1000);
+    timestamp = timestamp + US_TO_RTIMERTICKS(5000);
     tsch_current_asn = custom_asn;
   }else{
     tsch_current_asn = ies.ie_asn;
@@ -900,16 +894,28 @@ static void add_discovered_node(int newNode){
   return;
 }
 
+static uint32_t rtimerticks2us(uint32_t rtimerticks){
+    uint32_t us = 0;
+
+    while(rtimerticks > 0){
+        if(rtimerticks > 100){
+            us += RTIMERTICKS_TO_US(100);
+            rtimerticks = rtimerticks - 100;
+        }else{
+            us += RTIMERTICKS_TO_US(rtimerticks);
+            rtimerticks = rtimerticks - rtimerticks;
+        }
+    }
+
+    return us;
+}
+
 static void update_custom_asn(struct rtimer *t, void *ptr){
 
     rtimer_clock_t t0;
     t0 = RTIMER_NOW();
 
-    if (true) {
-    LOG_WARN("DEBUG: update asn running\n");
-    }
     if(tsch_is_associated || stop_asn_custom_update){
-      rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
       return;
   }
 
@@ -919,16 +925,16 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
     rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000), 1, update_custom_asn, NULL);
     return;
   }
-  long long asns_to_skip = 1;
+  uint32_t asns_to_skip = 1;
+  uint32_t time_since_packet_pending_us = 0;
+  rtimer_clock_t time_since_packet_pending_placeholder = 0;
   if (time_since_packet_pending != 0) {
-    long long time_since_packet_pending_us = RTIMERTICKS_TO_US(ABS(RTIMER_CLOCK_DIFF(time_since_packet_pending, t0)));
-//    LOG_WARN("Time since (before add) = %lli\n", time_since_packet_pending_us);
-    time_since_packet_pending_us = time_since_packet_pending_us + 1000;
-//    LOG_WARN("Time since (after add) = %lli\n", time_since_packet_pending_us);
-    asns_to_skip = time_since_packet_pending_us / 15000;
-    us_to_shorten_periods = time_since_packet_pending_us % 15000;
-    time_since_packet_pending = 0;
-//    LOG_WARN("US since pending %lli   ASNs skipped: %lli   US shortened %lli\n", time_since_packet_pending_us, asns_to_skip, us_to_shorten);
+      time_since_packet_pending_us = rtimerticks2us(RTIMER_CLOCK_DIFF(t0, time_since_packet_pending));
+      time_since_packet_pending_us = time_since_packet_pending_us + 7900;
+      asns_to_skip = (time_since_packet_pending_us / 15000);
+      us_to_shorten_periods = time_since_packet_pending_us % 15000;
+      time_since_packet_pending_placeholder = time_since_packet_pending;
+      time_since_packet_pending = 0;
   }
   TSCH_ASN_INC(custom_asn, asns_to_skip);
   long long us_to_shorten = 0;
@@ -941,14 +947,27 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
       us_to_shorten_periods = 0;
     }
   }
+
   rtimer_set(t, t0 + US_TO_RTIMERTICKS(15000 - us_to_shorten), 1, update_custom_asn, NULL);
+    if(us_to_shorten != 0){
+        LOG_WARN("DEBUG: setting timer for %lli us\n", (15000-us_to_shorten));
+    }
+    if(asns_to_skip != 1){
+        LOG_WARN("DEBUG: setting asn to skip: %lu\n", asns_to_skip);
+        LOG_WARN("TSPP_US = %lu, TSPP = %u, T0 = %u, CLCKDF = %d, TSPP_CACL = %lu\n",
+                 time_since_packet_pending_us,
+                 time_since_packet_pending_placeholder,
+                 t0,
+                 RTIMER_CLOCK_DIFF(t0, time_since_packet_pending_placeholder),
+                 rtimerticks2us(RTIMER_CLOCK_DIFF(t0, time_since_packet_pending_placeholder)));
+    }
 
 //    RTIMER_BUSYWAIT_UNTIL_ABS(false,t0,US_TO_RTIMERTICKS(15000-us_to_shorten)); // wait until 15ms after increment of ASN
 }
 
 PROCESS_THREAD(update_custom_asn_process, ev, data){
   PROCESS_BEGIN();
-  rtimer_set(&t, RTIMER_NOW(), 1, update_custom_asn, NULL);
+  rtimer_set(&t, RTIMER_NOW() + US_TO_RTIMERTICKS(2000), 1, update_custom_asn, NULL);
   PROCESS_YIELD();
   PROCESS_END();
 }
@@ -983,7 +1002,8 @@ PT_THREAD(tsch_scan(struct pt *pt))
 
     //If timeout since first discovered EB, associate now
     if(total_ebs_received > 0 && clock_time() - scanner_timeout > TSCH_CONF_SCAN_EB_TIMEOUT){
-//      LOG_WARN("DEBUG: Associating by timeout\n");
+      LOG_WARN("DEBUG: Associating by timeout\n");
+      scanner_timeout = 0;
       tsch_associate(&latest_eb, asn_last_updated /*RTIMER_NOW()*/, true);
     }
 
@@ -1054,7 +1074,8 @@ PT_THREAD(tsch_scan(struct pt *pt))
             //total_ebs_received = 1;
             //If enough EBs have been discovered, associate. Else if first EB discovered, start timeout timer.
             if((total_ebs_received == count_active_nodes(&ies) || total_ebs_received >= eb_join_evaluation_max)){
-              tsch_associate(&input_eb, t0, false);
+                scanner_timeout = 0;
+                tsch_associate(&input_eb, t0, false);
             }else if(scanner_timeout == 0){
               scanner_timeout = clock_time();
             }
@@ -1095,7 +1116,7 @@ static int count_active_nodes(struct ieee802154_ies *ies){
     int result = 0;
     int i;
     for(i = 0; i < ies->ie_topology.node_count; i++){
-        if(ies->ie_topology.node_data[i].left_network == 0){
+        if(ies->ie_topology.node_data[i].left_network == 0 && ies->ie_topology.node_data[i].node_id != node_id){
             result += 1;
         }
     }
@@ -1110,7 +1131,7 @@ PROCESS_THREAD(tsch_process, ev, data)
   static struct pt scan_pt;
 
   PROCESS_BEGIN();
-
+  //rtimer_set(&t, RTIMER_NOW(), 1, update_custom_asn, NULL);
   while(1) {
 
     while(!tsch_is_associated) {
@@ -1121,7 +1142,7 @@ PROCESS_THREAD(tsch_process, ev, data)
         /* Start scanning, will attempt to join when receiving an EB */
         //PT_SPAWN(, &update_pt, (&update_custom_asn_pt));
         //PROCESS_PT_SPAWN(&update_pt, update_custom_asn_pt(&update_pt));
-        //process_start(&update_custom_asn_process, NULL);
+        process_start(&update_custom_asn_process, NULL);
         PROCESS_PT_SPAWN(&scan_pt, tsch_scan(&scan_pt));
       }
     }

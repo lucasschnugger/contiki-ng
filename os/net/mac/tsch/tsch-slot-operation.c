@@ -1157,6 +1157,10 @@ PT_THREAD(tsch_slot_operation(struct rtimer *t, void *ptr))
         /* Update current slot start */
         prev_slot_start = current_slot_start;
         current_slot_start += time_to_next_active_slot;
+        time_since_packet_pending = current_slot_start;
+          TSCH_LOG_ADD(tsch_log_message,
+                       snprintf(log->message, sizeof(log->message),
+                                "Setting + %d ASN updating timestamp", timeslot_diff));
       } while(!tsch_schedule_slot_operation(t, prev_slot_start, time_to_next_active_slot, "main"));
     }
 
@@ -1194,7 +1198,10 @@ tsch_slot_operation_start(void)
     /* Update current slot start */
     prev_slot_start = current_slot_start;
     current_slot_start += time_to_next_active_slot;
-    time_since_packet_pending = current_slot_start;
+    time_since_packet_pending = prev_slot_start;
+      TSCH_LOG_ADD(tsch_log_message,
+                   snprintf(log->message, sizeof(log->message),
+                            "1Setting + %d ASN updating timestamp", timeslot_diff));
   } while(!tsch_schedule_slot_operation(&slot_operation_timer, prev_slot_start, time_to_next_active_slot, "assoc"));
 }
 /*---------------------------------------------------------------------------*/
