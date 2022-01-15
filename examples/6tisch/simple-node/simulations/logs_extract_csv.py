@@ -4,16 +4,19 @@ if os.path.isdir("/home/user/"):
     log_dir = "/home/user/contiki-ng/examples/6tisch/simple-node/simulations/logs/"
     output_file_join = "/home/user/join-data.csv"
     output_file_power = "/home/user/power-data.csv"
+    output_file_rejoin = "/home/user/rejoin-data.csv"
 elif os.path.isdir("/Users/Lucas/"):
     log_dir = "/Users/Lucas/Documents/Projects/contiki-ng-fork/examples/6tisch/simple-node/simulations/logs/"
     output_file_join = "/Users/Lucas/Downloads/join-data.csv"
     output_file_power = "/Users/Lucas/Downloads/power-data.csv"
+    output_file_rejoin = "/Users/Lucas/Downloads/rejoin-data.csv"
 
 logs = [f for f in os.listdir(log_dir) if os.path.isfile(f"{log_dir}{f}")]
 logs.sort()
 
 csv_lines_join = []
 csv_lines_power = []
+csv_lines_rejoin = []
 
 for log in logs:
     with open(f"{log_dir}{log}", "r") as file:
@@ -23,15 +26,21 @@ for log in logs:
                     csv_lines_join.append(line.replace("Join:", ""))
                 elif "Power:" in line:
                     csv_lines_power.append(line.replace("Power:", ""))
+                elif "Rejoin" in line:
+                    csv_lines_rejoin.append(line.replace("Rejoin", ""))
                 else:
                     csv_lines_join.append(line)
 
 csv_lines_join_str = "".join(csv_lines_join)
 csv_lines_power_str = "".join(csv_lines_power)
+csv_lines_rejoin_str = "".join(csv_lines_rejoin)
 file = open(output_file_join, "w")
 file.write(csv_lines_join_str)
 file.close()
 file = open(output_file_power, "w")
 file.write(csv_lines_power_str)
+file.close()
+file = open(output_file_rejoin, "w")
+file.write(csv_lines_rejoin_str)
 file.close()
 # print(csv_lines_str)

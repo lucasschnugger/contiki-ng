@@ -41,6 +41,8 @@ def add_scriptrunner_in_test(dir, test):
         scriptrunner = open(f"{scripts_dir}join.js").read()
     elif test.startswith("create-"):
         scriptrunner = open(f"{scripts_dir}create.js").read()
+    elif test.startswith("rejoin-"):
+        scriptrunner = open(f"{scripts_dir}rejoin.js").read()
     root = ET.parse(file)
     for element in root.iter():
         if element.tag == "simconf":
@@ -86,7 +88,7 @@ def add_powertracker_in_test(dir, test):
     root.write(file)
 
 
-def check_if_test_successful(test_output_file_path):
+def check_if_test_successful(test_output_file_path, test):
     f = open(test_output_file_path, "r")
     test_output = f.read()
     if("TEST FAILED" in test_output):
@@ -95,7 +97,7 @@ def check_if_test_successful(test_output_file_path):
     if("TEST OK" not in test_output):
         print("##### Test failed: 'TEST OK' not found  #####")
         return False
-    if("Network created with " not in test_output):
+    if(test.startswith("join") and "Network created with " not in test_output):
         print("##### Test failed: network not established  #####")
         return False
 
@@ -165,8 +167,8 @@ if not os.path.isdir(log_dir):
 seeds = random.sample(range(0,999999), 15) # 15 random seeds
 seeds.sort()
 firmwares = [
-    {"joining": "node-custom-16c-16s-2eb.z1", "network": "node-network-16c.z1"},
-    {"joining": "node-classic-16c-180s-2eb.z1", "network": "node-network-16c.z1"}
+    {"joining": "node-custom-16c-16s-2eb.z1", "network": "node-network-16c.z1"}
+    # {"joining": "node-classic-16c-180s-2eb.z1", "network": "node-network-16c.z1"}
 ]
 tests = [f for f in os.listdir(tests_dir) if os.path.isfile(f"{tests_dir}{f}")]
 tests.sort()
@@ -192,7 +194,7 @@ for test in tests:  # run each test from tests_dir
             print(f"\n\n ########### Now running test '{test}' with firmware '{firmware}' and seed '{seed}' ##############\n")
             run_test(cooja_jar, run_dir, test, seed)  # run simulation with seed
             local_seed = seed
-            while not check_if_test_successful(f"{run_dir}COOJA.testlog"):  # evaluate if test is OK
+            while not check_if_test_successful(f"{run_dir}COOJA.testlog", test):  # evaluate if test is OK
                 local_seed = random.randint(0,999999)
                 run_test(cooja_jar, run_dir, test, local_seed)
             add_testlog_parameters_csv(local_seed, test, firmware["joining"], f"{run_dir}COOJA.testlog")  # add test parameters to csv line in file
