@@ -930,7 +930,7 @@ static void update_custom_asn(struct rtimer *t, void *ptr){
   rtimer_clock_t time_since_packet_pending_placeholder = 0;
   if (time_since_packet_pending != 0) {
       time_since_packet_pending_us = rtimerticks2us(RTIMER_CLOCK_DIFF(t0, time_since_packet_pending));
-      time_since_packet_pending_us = time_since_packet_pending_us + 7900;
+      time_since_packet_pending_us = time_since_packet_pending_us + 9000;
       asns_to_skip = (time_since_packet_pending_us / 15000);
       us_to_shorten_periods = time_since_packet_pending_us % 15000;
       time_since_packet_pending_placeholder = time_since_packet_pending;
