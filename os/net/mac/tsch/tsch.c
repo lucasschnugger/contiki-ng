@@ -1022,6 +1022,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
       scan_channel = TSCH_JOIN_HOPPING_SEQUENCE[random_rand() % sizeof(TSCH_JOIN_HOPPING_SEQUENCE)];
     }
 
+    char radio_status[10];
     if (!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)){
       struct tsch_asn_divisor_t thsl;
       thsl.val = sizeof(TSCH_JOIN_HOPPING_SEQUENCE);
@@ -1031,14 +1032,29 @@ PT_THREAD(tsch_scan(struct pt *pt))
       scan_channel = tsch_hopping_sequence[index_of_offset];
     }
 
+      if(!(custom_asn.ms1b == 0 && custom_asn.ls4b == 0)) {
+          struct tsch_asn_divisor_t thsl;
+          thsl.val = 3;
+          thsl.asn_ms1b_remainder = ((0xffffffff % (thsl.val)) + 1) % (thsl.val);
+          if (TSCH_ASN_MOD(custom_asn, thsl) == 0) {
+              strcpy(radio_status, "radio: on");
+              NETSTACK_RADIO.on();
+          } else {
+              strcpy(radio_status, "radio: off");
+              NETSTACK_RADIO.off();
+          }
+      }else{
+          /* Turn radio on and wait for EB */
+          NETSTACK_RADIO.on();
+      }
+
     if(current_channel != scan_channel){
       NETSTACK_RADIO.set_value(RADIO_PARAM_CHANNEL, scan_channel);
       current_channel = scan_channel;
-      LOG_INFO("scanning on channel %u   ASN %02x.%08lx\n", scan_channel, custom_asn.ms1b, custom_asn.ls4b);
+      LOG_INFO("scanning on channel %u   ASN %02x.%08lx, %s\n", scan_channel, custom_asn.ms1b, custom_asn.ls4b, radio_status);
     }
 
-    /* Turn radio on and wait for EB */
-    NETSTACK_RADIO.on();
+
 
     is_packet_pending = NETSTACK_RADIO.pending_packet();
     if(!is_packet_pending && NETSTACK_RADIO.receiving_packet()) {
@@ -1068,6 +1084,7 @@ PT_THREAD(tsch_scan(struct pt *pt))
           uint8_t hdrlen;
           if(tsch_packet_parse_eb(input_eb.payload, input_eb.len, &frame, &ies, &hdrlen, 0) != 0) {
             TSCH_ASN_INIT(custom_asn, ies.ie_asn.ms1b, ies.ie_asn.ls4b);
+            LOG_INFO("scan: EB received\n");
             time_since_packet_pending = t0;
             add_discovered_node(ies.ie_topology.src_node_id);
             latest_eb = input_eb;
@@ -1131,7 +1148,7 @@ PROCESS_THREAD(tsch_process, ev, data)
   static struct pt scan_pt;
 
   PROCESS_BEGIN();
-  //rtimer_set(&t, RTIMER_NOW(), 1, update_custom_asn, NULL);
+
   while(1) {
 
     while(!tsch_is_associated) {
@@ -1140,8 +1157,6 @@ PROCESS_THREAD(tsch_process, ev, data)
         tsch_start_coordinator();
       } else {
         /* Start scanning, will attempt to join when receiving an EB */
-        //PT_SPAWN(, &update_pt, (&update_custom_asn_pt));
-        //PROCESS_PT_SPAWN(&update_pt, update_custom_asn_pt(&update_pt));
         process_start(&update_custom_asn_process, NULL);
         PROCESS_PT_SPAWN(&scan_pt, tsch_scan(&scan_pt));
       }
